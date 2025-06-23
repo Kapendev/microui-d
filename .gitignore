@@ -1,0 +1,17 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/microui-d
+microui-d.so
+microui-d.dylib
+microui-d.dll
+microui-d.a
+microui-d.lib
+microui-d-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst
+lib*
