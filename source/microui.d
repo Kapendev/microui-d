@@ -30,6 +30,7 @@
 
 // TODO: Remove C strings from functions. The textinput is the only thing that needs to change I think.
 // TODO: Try to fix the sprintf thingy.
+// TODO: Replace ints with bools when you can.
 // TODO: Add doc comments.
 // TODO: Add maybe support for parin and raylib-d?
 // TODO: Maybe think about flag types, but ehh...
@@ -55,6 +56,18 @@ alias mu_Real = float;
 alias mu_Id = uint;
 alias mu_Font = void*;
 
+alias mu_Enum = int;
+alias mu_Clip = mu_Enum;
+alias mu_CommandKind = mu_Enum;
+alias mu_ColorKind = mu_Enum;
+alias mu_Icon = mu_Enum;
+
+alias mu_Flags = int;
+alias mu_ResFlags = mu_Flags;
+alias mu_OptFlags = mu_Flags;
+alias mu_MouseFlags = mu_Flags;
+alias mu_KeyFlags = mu_Flags;
+
 private enum HASH_INITIAL = 2166136261; /* 32bit fnv-1a hash */
 private enum RELATIVE = 1;
 private enum ABSOLUTE = 2;
@@ -76,12 +89,12 @@ enum MU_REAL_FMT            = "%.3g";
 enum MU_SLIDER_FMT          = "%.2f";
 enum MU_MAX_FMT             = 127;
 
-enum {
+enum : mu_Enum {
     MU_CLIP_PART = 1,
     MU_CLIP_ALL,
 }
 
-enum {
+enum : mu_Enum {
     MU_COMMAND_JUMP = 1,
     MU_COMMAND_CLIP,
     MU_COMMAND_RECT,
@@ -90,7 +103,7 @@ enum {
     MU_COMMAND_MAX,
 }
 
-enum {
+enum : mu_Enum {
     MU_COLOR_TEXT,
     MU_COLOR_BORDER,
     MU_COLOR_WINDOWBG,
@@ -108,7 +121,7 @@ enum {
     MU_COLOR_MAX,
 }
 
-enum {
+enum : mu_Enum {
     MU_ICON_CLOSE = 1,
     MU_ICON_CHECK,
     MU_ICON_COLLAPSED,
@@ -116,13 +129,13 @@ enum {
     MU_ICON_MAX,
 }
 
-enum {
+enum : mu_Flags {
     MU_RES_ACTIVE = (1 << 0),
     MU_RES_SUBMIT = (1 << 1),
     MU_RES_CHANGE = (1 << 2),
 }
 
-enum {
+enum : mu_Flags {
     MU_OPT_ALIGNCENTER = (1 << 0),
     MU_OPT_ALIGNRIGHT  = (1 << 1),
     MU_OPT_NOINTERACT  = (1 << 2),
@@ -138,13 +151,13 @@ enum {
     MU_OPT_EXPANDED    = (1 << 12),
 }
 
-enum {
+enum : mu_Flags {
     MU_MOUSE_LEFT   = (1 << 0),
     MU_MOUSE_RIGHT  = (1 << 1),
     MU_MOUSE_MIDDLE = (1 << 2),
 }
 
-enum {
+enum : mu_Flags {
     MU_KEY_SHIFT     = (1 << 0),
     MU_KEY_CTRL      = (1 << 1),
     MU_KEY_ALT       = (1 << 2),
@@ -218,6 +231,18 @@ struct mu_Stack(T, size_t N) {
     mu_Array!(T, N) data = void;
 
     alias data this;
+
+    @safe nothrow @nogc:
+
+    void push(T val) {
+        items[idx] = val;
+        idx += 1; /* incremented after incase `val` uses this value */
+    }
+
+    void pop() {
+        mu_expect(idx > 0);
+        idx -= 1;
+    }
 }
 
 struct mu_Vec2 { int x, y; }
@@ -353,7 +378,7 @@ private void push_layout(mu_Context* ctx, mu_Rect body, mu_Vec2 scroll) {
     memset(&layout, 0, layout.sizeof);
     layout.body = mu_rect(body.x - scroll.x, body.y - scroll.y, body.w, body.h);
     layout.max = mu_vec2(-0x1000000, -0x1000000);
-    mu_push(ctx.layout_stack, layout);
+    ctx.layout_stack.push(layout);
     mu_layout_row(ctx, 1, &width, 0);
 }
 
@@ -367,12 +392,12 @@ private void pop_container(mu_Context* ctx) {
     cnt.content_size.x = layout.max.x - layout.body.x;
     cnt.content_size.y = layout.max.y - layout.body.y;
     /* pop container, layout and id */
-    mu_pop(ctx.container_stack);
-    mu_pop(ctx.layout_stack);
+    ctx.container_stack.pop();
+    ctx.layout_stack.pop();
     mu_pop_id(ctx);
 }
 
-private mu_Container* get_container(mu_Context* ctx, mu_Id id, int opt) {
+private mu_Container* get_container(mu_Context* ctx, mu_Id id, mu_OptFlags opt) {
     mu_Container* cnt;
     /* try to get existing container from pool */
     int idx = mu_pool_get(ctx, ctx.container_pool.ptr, MU_CONTAINERPOOL_SIZE, id);
@@ -427,7 +452,7 @@ private int number_textbox(mu_Context* ctx, mu_Real* value, mu_Rect r, mu_Id id)
     return 0;
 }
 
-private int header(mu_Context* ctx, const(char)[] label, int istreenode, int opt) {
+private int header(mu_Context* ctx, const(char)[] label, int istreenode, mu_OptFlags opt) {
     mu_Rect r;
     int active, expanded;
     mu_Id id = mu_get_id(ctx, label.ptr, label.length);
@@ -479,16 +504,16 @@ private void scrollbars(mu_Context* ctx, mu_Container* cnt, mu_Rect* body) {
     mu_pop_clip_rect(ctx);
 }
 
-private void push_container_body(mu_Context* ctx, mu_Container* cnt, mu_Rect body, int opt) {
+private void push_container_body(mu_Context* ctx, mu_Container* cnt, mu_Rect body, mu_OptFlags opt) {
     if (~opt & MU_OPT_NOSCROLL) { scrollbars(ctx, cnt, &body); }
     push_layout(ctx, mu_expand_rect(body, -ctx.style.padding), cnt.scroll);
     cnt.body = body;
 }
 
 private void begin_root_container(mu_Context* ctx, mu_Container* cnt) {
-    mu_push(ctx.container_stack, cnt);
     /* push container to roots list and push head command */
-    mu_push(ctx.root_list, cnt);
+    ctx.container_stack.push(cnt);
+    ctx.root_list.push(cnt);
     cnt.head = push_jump(ctx, null);
     /* set as hover root if the mouse is overlapping this container and it has a
     ** higher zindex than the current hover root */
@@ -498,7 +523,7 @@ private void begin_root_container(mu_Context* ctx, mu_Container* cnt) {
     /* clipping is reset here in case a root-container is made within
     ** another root-containers's begin/end block; this prevents the inner
     ** root-container being clipped to the outer */
-    mu_push(ctx.clip_stack, mu_unclipped_rect);
+    ctx.clip_stack.push(mu_unclipped_rect);
 }
 
 private void end_root_container(mu_Context* ctx) {
@@ -510,16 +535,6 @@ private void end_root_container(mu_Context* ctx) {
     /* pop base clip rect and container */
     mu_pop_clip_rect(ctx);
     pop_container(ctx);
-}
-
-void mu_push(T1, T2)(ref T1 stk, T2 val) {
-    stk.items[stk.idx] = val;
-    stk.idx += 1; /* incremented after incase `val` uses this value */
-}
-
-void mu_pop(T)(ref T stk) {
-    mu_expect(stk.idx > 0);
-    stk.idx -= 1;
 }
 
 extern(C):
@@ -667,20 +682,20 @@ mu_Id mu_get_id(mu_Context* ctx, const(void)* data, size_t size) {
 }
 
 void mu_push_id(mu_Context* ctx, const(void)* data, size_t size) {
-    mu_push(ctx.id_stack, mu_get_id(ctx, data, size));
+    ctx.id_stack.push(mu_get_id(ctx, data, size));
 }
 
 void mu_pop_id(mu_Context* ctx) {
-    mu_pop(ctx.id_stack);
+    ctx.id_stack.pop();
 }
 
 void mu_push_clip_rect(mu_Context* ctx, mu_Rect rect) {
     mu_Rect last = mu_get_clip_rect(ctx);
-    mu_push(ctx.clip_stack, mu_intersect_rects(rect, last));
+    ctx.clip_stack.push(mu_intersect_rects(rect, last));
 }
 
 void mu_pop_clip_rect(mu_Context* ctx) {
-    mu_pop(ctx.clip_stack);
+    ctx.clip_stack.pop();
 }
 
 mu_Rect mu_get_clip_rect(mu_Context* ctx) {
@@ -874,7 +889,7 @@ void mu_layout_begin_column(mu_Context* ctx) {
 void mu_layout_end_column(mu_Context* ctx) {
     mu_Layout* a; mu_Layout* b;
     b = get_layout(ctx);
-    mu_pop(ctx.layout_stack);
+    ctx.layout_stack.pop();
     /* inherit position/next_row/max from child layout if they are greater */
     a = get_layout(ctx);
     a.position.x = mu_max(a.position.x, b.position.x + b.body.x - a.body.x);
@@ -953,13 +968,13 @@ mu_Rect mu_layout_next(mu_Context* ctx) {
 ** controls
 **============================================================================*/
 
-void mu_draw_control_frame(mu_Context* ctx, mu_Id id, mu_Rect rect, int colorid, int opt) {
+void mu_draw_control_frame(mu_Context* ctx, mu_Id id, mu_Rect rect, int colorid, mu_OptFlags opt) {
     if (opt & MU_OPT_NOFRAME) { return; }
     colorid += (ctx.focus == id) ? 2 : (ctx.hover == id) ? 1 : 0;
     ctx.draw_frame(ctx, rect, colorid);
 }
 
-void mu_draw_control_text(mu_Context* ctx, const(char)[] str, mu_Rect rect, int colorid, int opt) {
+void mu_draw_control_text(mu_Context* ctx, const(char)[] str, mu_Rect rect, int colorid, mu_OptFlags opt) {
     mu_Vec2 pos;
     mu_Font font = ctx.style.font;
     // NOTE(Kapendev): Original was `ctx.text_width(font, str, -1)`. WTF IS LENGTH -1? Now the `int` type makes sense. It's used to call `strlen` for you.
@@ -981,7 +996,7 @@ int mu_mouse_over(mu_Context* ctx, mu_Rect rect) {
     return mu_rect_overlaps_vec2(rect, ctx.mouse_pos) && mu_rect_overlaps_vec2(mu_get_clip_rect(ctx), ctx.mouse_pos) && in_hover_root(ctx);
 }
 
-void mu_update_control(mu_Context* ctx, mu_Id id, mu_Rect rect, int opt) {
+void mu_update_control(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_OptFlags opt) {
     int mouseover = mu_mouse_over(ctx, rect);
     if (ctx.focus == id) { ctx.updated_focus = 1; }
     if (opt & MU_OPT_NOINTERACT) { return; }
@@ -1021,7 +1036,7 @@ void mu_text(mu_Context* ctx, const(char)[] text) {
                 while (p < text.ptr + text.length && *p != ' ' && *p != '\n') { p += 1; }
                 w += ctx.text_width(font, word[0 .. p - word]); // NOTE(Kapendev): Original was `text_width(font, word, cast(int) (p - word)`.
                 if (w > r.w && end != start) { break; }
-                w += ctx.text_width(font, p[0 .. 1]);           // NOTE(Kapendev): Original was `text_width(font, p, 1)`.
+                // w += ctx.text_width(font, p[0 .. 1]);        // NOTE(Kapendev): Original was `text_width(font, p, 1)`.
                 end = p++;
             } while(end < text.ptr + text.length && *end != '\n');
             mu_draw_text(ctx, font, start[0 .. end - start], mu_vec2(r.x, r.y), color); // NOTE(Kapendev): Original was `mu_draw_text(ctx, font, start, cast(int) (end - start), mu_vec2(r.x, r.y), color)`.
@@ -1035,7 +1050,7 @@ void mu_label(mu_Context* ctx, const(char)[] text) {
     mu_draw_control_text(ctx, text, mu_layout_next(ctx), MU_COLOR_TEXT, 0);
 }
 
-int mu_button_ex(mu_Context* ctx, const(char)[] label, int icon, int opt) {
+int mu_button_ex(mu_Context* ctx, const(char)[] label, int icon, mu_OptFlags opt) {
     int res = 0;
     // NOTE: Original was `label ?` and new one is `label.ptr ?`. They work the same.
     mu_Id id = label.ptr ? mu_get_id(ctx, label.ptr, label.length) : mu_get_id(ctx, &icon, icon.sizeof);
@@ -1054,7 +1069,6 @@ int mu_button(mu_Context* ctx, const(char)[] label) {
     return mu_button_ex(ctx, label, 0, 0);
 }
 
-// TODO(Kapendev): Maybe add a type like `mu_StateFlags`.
 int mu_checkbox(mu_Context* ctx, const(char)[] label, int* state) {
     int res = 0;
     mu_Id id = mu_get_id(ctx, &state, state.sizeof);
@@ -1077,7 +1091,7 @@ int mu_checkbox(mu_Context* ctx, const(char)[] label, int* state) {
 }
 
 // TODO(Kapendev): Try to change this to a slice too. No idea what `bufsz` is.
-int mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_Rect r, int opt) {
+int mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_Rect r, mu_OptFlags opt) {
     int res = 0;
     mu_update_control(ctx, id, r, opt | MU_OPT_HOLDFOCUS);
 
@@ -1126,7 +1140,7 @@ int mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_Rect r, i
     return res;
 }
 
-int mu_textbox_ex(mu_Context* ctx, char* buf, int bufsz, int opt) {
+int mu_textbox_ex(mu_Context* ctx, char* buf, int bufsz, mu_OptFlags opt) {
     mu_Id id = mu_get_id(ctx, &buf, buf.sizeof);
     mu_Rect r = mu_layout_next(ctx);
     return mu_textbox_raw(ctx, buf, bufsz, id, r, opt);
@@ -1136,7 +1150,7 @@ int mu_textbox(mu_Context* ctx, char* buf, int bufsz) {
     return mu_textbox_ex(ctx, buf, bufsz, 0);
 }
 
-int mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)[] fmt, int opt) {
+int mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {
     char[MU_MAX_FMT + 1] buf;
     mu_Rect thumb;
     int x; int w; int res;
@@ -1177,7 +1191,7 @@ int mu_slider(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Rea
     return mu_slider_ex(ctx, value, low, high, step, fmt, 0);
 }
 
-int mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt, int opt) {
+int mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {
     char[MU_MAX_FMT + 1] buf;
     int res = 0;
     mu_Id id = mu_get_id(ctx, &value, value.sizeof);
@@ -1208,7 +1222,7 @@ int mu_number(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt) 
     return mu_number_ex(ctx, value, step, fmt, 0);
 }
 
-int mu_header_ex(mu_Context* ctx, const(char)[] label, int opt) {
+int mu_header_ex(mu_Context* ctx, const(char)[] label, mu_OptFlags opt) {
     return header(ctx, label, 0, opt);
 }
 
@@ -1216,11 +1230,11 @@ int mu_header(mu_Context* ctx, const(char)[] label) {
     return mu_header_ex(ctx, label, 0);
 }
 
-int mu_begin_treenode_ex(mu_Context* ctx, const(char)[] label, int opt) {
+int mu_begin_treenode_ex(mu_Context* ctx, const(char)[] label, mu_OptFlags opt) {
     int res = header(ctx, label, 1, opt);
     if (res & MU_RES_ACTIVE) {
         get_layout(ctx).indent += ctx.style.indent;
-        mu_push(ctx.id_stack, ctx.last_id);
+        ctx.id_stack.push(ctx.last_id);
     }
     return res;
 }
@@ -1263,12 +1277,12 @@ void scrollbar(const(char)[] x, const(char)[] y, const(char)[] w, const(char)[] 
     }
 }
 
-int mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rect, int opt) {
+int mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rect, mu_OptFlags opt) {
     mu_Rect body;
     mu_Id id = mu_get_id(ctx, title.ptr, title.length);
     mu_Container* cnt = get_container(ctx, id, opt);
     if (!cnt || !cnt.open) { return 0; }
-    mu_push(ctx.id_stack, id);
+    ctx.id_stack.push(id);
 
     if (cnt.rect.w == 0) { cnt.rect = rect; }
     begin_root_container(ctx, cnt);
@@ -1360,13 +1374,13 @@ void mu_end_popup(mu_Context* ctx) {
     mu_end_window(ctx);
 }
 
-void mu_begin_panel_ex(mu_Context* ctx, const(char)[] name, int opt) {
+void mu_begin_panel_ex(mu_Context* ctx, const(char)[] name, mu_OptFlags opt) {
     mu_Container* cnt;
     mu_push_id(ctx, name.ptr, name.length);
     cnt = get_container(ctx, ctx.last_id, opt);
     cnt.rect = mu_layout_next(ctx);
     if (~opt & MU_OPT_NOFRAME) { ctx.draw_frame(ctx, cnt.rect, MU_COLOR_PANELBG); }
-    mu_push(ctx.container_stack, cnt);
+    ctx.container_stack.push(cnt);
     push_container_body(ctx, cnt, cnt.rect, opt);
     mu_push_clip_rect(ctx, cnt.body);
 }
