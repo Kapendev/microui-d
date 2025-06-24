@@ -30,10 +30,8 @@
 
 // TODO: Remove C strings from functions. The textinput is the only thing that needs to change I think.
 // TODO: Try to fix the sprintf thingy.
-// TODO: Replace ints with bools when you can.
 // TODO: Add doc comments.
 // TODO: Add maybe support for parin and raylib-d?
-// TODO: Maybe think about flag types, but ehh...
 
 module microui;
 
@@ -56,21 +54,21 @@ alias mu_Real = float;
 alias mu_Id = uint;
 alias mu_Font = void*;
 
-alias mu_Enum = int;
-alias mu_Clip = mu_Enum;
-alias mu_CommandKind = mu_Enum;
-alias mu_ColorKind = mu_Enum;
-alias mu_Icon = mu_Enum;
+alias mu_Enum = short;
+alias mu_ClipEnum = mu_Enum;
+alias mu_CommandEnum = mu_Enum;
+alias mu_ColorEnum = mu_Enum;
+alias mu_IconEnum = mu_Enum;
 
-alias mu_Flags = int;
+alias mu_Flags = short;
 alias mu_ResFlags = mu_Flags;
 alias mu_OptFlags = mu_Flags;
 alias mu_MouseFlags = mu_Flags;
 alias mu_KeyFlags = mu_Flags;
 
-private enum HASH_INITIAL = 2166136261; /* 32bit fnv-1a hash */
-private enum RELATIVE = 1;
-private enum ABSOLUTE = 2;
+private enum HASH_INITIAL = 2166136261; /* A 32bit fnv-1a hash. UwU  */
+private enum RELATIVE = 1;              /* The relative layout type. */
+private enum ABSOLUTE = 2;              /* The absolute layout type. */
 
 enum MU_D_VERSION           = "v0.0.1";
 enum MU_VERSION             = "2.02";
@@ -89,12 +87,14 @@ enum MU_REAL_FMT            = "%.3g";
 enum MU_SLIDER_FMT          = "%.2f";
 enum MU_MAX_FMT             = 127;
 
-enum : mu_Enum {
+enum : mu_ClipEnum {
+    MU_CLIP_NONE = 0,
     MU_CLIP_PART = 1,
     MU_CLIP_ALL,
 }
 
-enum : mu_Enum {
+enum : mu_CommandEnum {
+    MU_COMMAND_NONE = 0,
     MU_COMMAND_JUMP = 1,
     MU_COMMAND_CLIP,
     MU_COMMAND_RECT,
@@ -103,7 +103,7 @@ enum : mu_Enum {
     MU_COMMAND_MAX,
 }
 
-enum : mu_Enum {
+enum : mu_ColorEnum {
     MU_COLOR_TEXT,
     MU_COLOR_BORDER,
     MU_COLOR_WINDOWBG,
@@ -121,7 +121,8 @@ enum : mu_Enum {
     MU_COLOR_MAX,
 }
 
-enum : mu_Enum {
+enum : mu_IconEnum {
+    MU_ICON_NONE = 0,
     MU_ICON_CLOSE = 1,
     MU_ICON_CHECK,
     MU_ICON_COLLAPSED,
@@ -129,13 +130,13 @@ enum : mu_Enum {
     MU_ICON_MAX,
 }
 
-enum : mu_Flags {
+enum : mu_ResFlags {
     MU_RES_ACTIVE = (1 << 0),
     MU_RES_SUBMIT = (1 << 1),
     MU_RES_CHANGE = (1 << 2),
 }
 
-enum : mu_Flags {
+enum : mu_OptFlags {
     MU_OPT_ALIGNCENTER = (1 << 0),
     MU_OPT_ALIGNRIGHT  = (1 << 1),
     MU_OPT_NOINTERACT  = (1 << 2),
@@ -151,13 +152,13 @@ enum : mu_Flags {
     MU_OPT_EXPANDED    = (1 << 12),
 }
 
-enum : mu_Flags {
+enum : mu_MouseFlags {
     MU_MOUSE_LEFT   = (1 << 0),
     MU_MOUSE_RIGHT  = (1 << 1),
     MU_MOUSE_MIDDLE = (1 << 2),
 }
 
-enum : mu_Flags {
+enum : mu_KeyFlags {
     MU_KEY_SHIFT     = (1 << 0),
     MU_KEY_CTRL      = (1 << 1),
     MU_KEY_ALT       = (1 << 2),
@@ -250,7 +251,7 @@ struct mu_Rect { int x, y, w, h; }
 struct mu_Color { ubyte r, g, b, a; }
 struct mu_PoolItem { mu_Id id; int last_update; }
 
-struct mu_BaseCommand { int type, size; }
+struct mu_BaseCommand { mu_CommandEnum type; int size; }
 struct mu_JumpCommand { mu_BaseCommand base; void* dst; }
 struct mu_ClipCommand { mu_BaseCommand base; mu_Rect rect; }
 struct mu_RectCommand { mu_BaseCommand base; mu_Rect rect; mu_Color color; }
@@ -258,7 +259,7 @@ struct mu_TextCommand { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color
 struct mu_IconCommand { mu_BaseCommand base; mu_Rect rect; int id; mu_Color color; }
 
 union mu_Command {
-    int type;
+    mu_CommandEnum type;
     mu_BaseCommand base;
     mu_JumpCommand jump;
     mu_ClipCommand clip;
@@ -424,35 +425,35 @@ private mu_Command* push_jump(mu_Context* ctx, mu_Command* dst) {
     return cmd;
 }
 
-private int in_hover_root(mu_Context* ctx) {
+private bool in_hover_root(mu_Context* ctx) {
     int i = ctx.container_stack.idx;
     while (i--) {
-        if (ctx.container_stack.items[i] == ctx.hover_root) { return 1; }
+        if (ctx.container_stack.items[i] == ctx.hover_root) { return true; }
         /* only root containers have their `head` field set; stop searching if we've
         ** reached the current root container */
         if (ctx.container_stack.items[i].head) { break; }
     }
-    return 0;
+    return false;
 }
 
-private int number_textbox(mu_Context* ctx, mu_Real* value, mu_Rect r, mu_Id id) {
+private bool number_textbox(mu_Context* ctx, mu_Real* value, mu_Rect r, mu_Id id) {
     if (ctx.mouse_pressed == MU_MOUSE_LEFT && ctx.key_down & MU_KEY_SHIFT && ctx.hover == id) {
         ctx.number_edit = id;
         sprintf(ctx.number_edit_buf.ptr, MU_REAL_FMT, *value);
     }
     if (ctx.number_edit == id) {
-        int res = mu_textbox_raw(ctx, ctx.number_edit_buf.ptr, ctx.number_edit_buf.sizeof, id, r, 0);
+        mu_ResFlags res = mu_textbox_raw(ctx, ctx.number_edit_buf.ptr, ctx.number_edit_buf.sizeof, id, r, 0);
         if (res & MU_RES_SUBMIT || ctx.focus != id) {
             *value = strtod(ctx.number_edit_buf.ptr, null);
             ctx.number_edit = 0;
         } else {
-            return 1;
+            return true;
         }
     }
-    return 0;
+    return false;
 }
 
-private int header(mu_Context* ctx, const(char)[] label, int istreenode, mu_OptFlags opt) {
+private mu_ResFlags header(mu_Context* ctx, const(char)[] label, int istreenode, mu_OptFlags opt) {
     mu_Rect r;
     int active, expanded;
     mu_Id id = mu_get_id(ctx, label.ptr, label.length);
@@ -703,10 +704,10 @@ mu_Rect mu_get_clip_rect(mu_Context* ctx) {
     return ctx.clip_stack.items[ctx.clip_stack.idx - 1];
 }
 
-int mu_check_clip(mu_Context* ctx, mu_Rect r) {
+mu_ClipEnum mu_check_clip(mu_Context* ctx, mu_Rect r) {
     mu_Rect cr = mu_get_clip_rect(ctx);
     if (r.x > cr.x + cr.w || r.x + r.w < cr.x || r.y > cr.y + cr.h || r.y + r.h < cr.y) { return MU_CLIP_ALL; }
-    if (r.x >= cr.x && r.x + r.w <= cr.x + cr.w && r.y >= cr.y && r.y + r.h <= cr.y + cr.h) { return 0; }
+    if (r.x >= cr.x && r.x + r.w <= cr.x + cr.w && r.y >= cr.y && r.y + r.h <= cr.y + cr.h) { return MU_CLIP_NONE; }
     return MU_CLIP_PART;
 }
 
@@ -800,7 +801,7 @@ void mu_input_text(mu_Context* ctx, const(char)[] text) {
 ** commandlist
 **============================================================================*/
 
-mu_Command* mu_push_command(mu_Context* ctx, int type, size_t size) {
+mu_Command* mu_push_command(mu_Context* ctx, mu_CommandEnum type, size_t size) {
     mu_Command* cmd = cast(mu_Command*) (ctx.command_list.items.ptr + ctx.command_list.idx);
     mu_expect(ctx.command_list.idx + size < MU_COMMANDLIST_SIZE);
     cmd.base.type = type;
@@ -809,17 +810,17 @@ mu_Command* mu_push_command(mu_Context* ctx, int type, size_t size) {
     return cmd;
 }
 
-int mu_next_command(mu_Context* ctx, mu_Command** cmd) {
+bool mu_next_command(mu_Context* ctx, mu_Command** cmd) {
     if (*cmd) {
         *cmd = cast(mu_Command*) ((cast(char*) *cmd) + (*cmd).base.size);
     } else {
         *cmd = cast(mu_Command*) ctx.command_list.items;
     }
     while (cast(char*) *cmd != ctx.command_list.items.ptr + ctx.command_list.idx) {
-        if ((*cmd).type != MU_COMMAND_JUMP) { return 1; }
+        if ((*cmd).type != MU_COMMAND_JUMP) { return true; }
         *cmd = cast(mu_Command*) (*cmd).jump.dst;
     }
-    return 0;
+    return false;
 }
 
 void mu_set_clip(mu_Context* ctx, mu_Rect rect) {
@@ -848,7 +849,7 @@ void mu_draw_box(mu_Context* ctx, mu_Rect rect, mu_Color color) {
 void mu_draw_text(mu_Context* ctx, mu_Font font, const(char)[] str, mu_Vec2 pos, mu_Color color) {
     mu_Command* cmd;
     mu_Rect rect = mu_rect(pos.x, pos.y, ctx.text_width(font, str), ctx.text_height(font));
-    int clipped = mu_check_clip(ctx, rect);
+    mu_ClipEnum clipped = mu_check_clip(ctx, rect);
     if (clipped == MU_CLIP_ALL ) { return; }
     if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
     /* add command */
@@ -866,7 +867,7 @@ void mu_draw_text(mu_Context* ctx, mu_Font font, const(char)[] str, mu_Vec2 pos,
 void mu_draw_icon(mu_Context* ctx, int id, mu_Rect rect, mu_Color color) {
     mu_Command* cmd;
     /* do clip command if the rect isn't fully contained within the cliprect */
-    int clipped = mu_check_clip(ctx, rect);
+    mu_ClipEnum clipped = mu_check_clip(ctx, rect);
     if (clipped == MU_CLIP_ALL ) { return; }
     if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
     /* do icon command */
@@ -919,7 +920,7 @@ void mu_layout_height(mu_Context* ctx, int height) {
     get_layout(ctx).size.y = height;
 }
 
-void mu_layout_set_next(mu_Context* ctx, mu_Rect r, int relative) {
+void mu_layout_set_next(mu_Context* ctx, mu_Rect r, bool relative) {
     mu_Layout* layout = get_layout(ctx);
     layout.next = r;
     layout.next_type = relative ? RELATIVE : ABSOLUTE;
@@ -992,12 +993,12 @@ void mu_draw_control_text(mu_Context* ctx, const(char)[] str, mu_Rect rect, int 
     mu_pop_clip_rect(ctx);
 }
 
-int mu_mouse_over(mu_Context* ctx, mu_Rect rect) {
+bool mu_mouse_over(mu_Context* ctx, mu_Rect rect) {
     return mu_rect_overlaps_vec2(rect, ctx.mouse_pos) && mu_rect_overlaps_vec2(mu_get_clip_rect(ctx), ctx.mouse_pos) && in_hover_root(ctx);
 }
 
 void mu_update_control(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_OptFlags opt) {
-    int mouseover = mu_mouse_over(ctx, rect);
+    bool mouseover = mu_mouse_over(ctx, rect);
     if (ctx.focus == id) { ctx.updated_focus = 1; }
     if (opt & MU_OPT_NOINTERACT) { return; }
     if (mouseover && !ctx.mouse_down) { ctx.hover = id; }
@@ -1050,8 +1051,8 @@ void mu_label(mu_Context* ctx, const(char)[] text) {
     mu_draw_control_text(ctx, text, mu_layout_next(ctx), MU_COLOR_TEXT, 0);
 }
 
-int mu_button_ex(mu_Context* ctx, const(char)[] label, int icon, mu_OptFlags opt) {
-    int res = 0;
+mu_ResFlags mu_button_ex(mu_Context* ctx, const(char)[] label, mu_IconEnum icon, mu_OptFlags opt) {
+    mu_ResFlags res = 0;
     // NOTE: Original was `label ?` and new one is `label.ptr ?`. They work the same.
     mu_Id id = label.ptr ? mu_get_id(ctx, label.ptr, label.length) : mu_get_id(ctx, &icon, icon.sizeof);
     mu_Rect r = mu_layout_next(ctx);
@@ -1065,12 +1066,12 @@ int mu_button_ex(mu_Context* ctx, const(char)[] label, int icon, mu_OptFlags opt
     return res;
 }
 
-int mu_button(mu_Context* ctx, const(char)[] label) {
+mu_ResFlags mu_button(mu_Context* ctx, const(char)[] label) {
     return mu_button_ex(ctx, label, 0, 0);
 }
 
-int mu_checkbox(mu_Context* ctx, const(char)[] label, int* state) {
-    int res = 0;
+mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, int* state) {
+    mu_ResFlags res = 0;
     mu_Id id = mu_get_id(ctx, &state, state.sizeof);
     mu_Rect r = mu_layout_next(ctx);
     mu_Rect box = mu_rect(r.x, r.y, r.h, r.h);
@@ -1091,8 +1092,8 @@ int mu_checkbox(mu_Context* ctx, const(char)[] label, int* state) {
 }
 
 // TODO(Kapendev): Try to change this to a slice too. No idea what `bufsz` is.
-int mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_Rect r, mu_OptFlags opt) {
-    int res = 0;
+mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_Rect r, mu_OptFlags opt) {
+    mu_ResFlags res = 0;
     mu_update_control(ctx, id, r, opt | MU_OPT_HOLDFOCUS);
 
     if (ctx.focus == id) {
@@ -1140,20 +1141,21 @@ int mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_Rect r, m
     return res;
 }
 
-int mu_textbox_ex(mu_Context* ctx, char* buf, int bufsz, mu_OptFlags opt) {
+mu_ResFlags mu_textbox_ex(mu_Context* ctx, char* buf, int bufsz, mu_OptFlags opt) {
     mu_Id id = mu_get_id(ctx, &buf, buf.sizeof);
     mu_Rect r = mu_layout_next(ctx);
     return mu_textbox_raw(ctx, buf, bufsz, id, r, opt);
 }
 
-int mu_textbox(mu_Context* ctx, char* buf, int bufsz) {
+mu_ResFlags mu_textbox(mu_Context* ctx, char* buf, int bufsz) {
     return mu_textbox_ex(ctx, buf, bufsz, 0);
 }
 
-int mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {
+mu_ResFlags mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {
     char[MU_MAX_FMT + 1] buf;
+    int x; int w;
     mu_Rect thumb;
-    int x; int w; int res;
+    mu_ResFlags res = 0;
     mu_Real last = *value, v = last;
     mu_Id id = mu_get_id(ctx, &value, value.sizeof);
     mu_Rect base = mu_layout_next(ctx);
@@ -1187,13 +1189,13 @@ int mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_
     return res;
 }
 
-int mu_slider(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)[] fmt) {
+mu_ResFlags mu_slider(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)[] fmt) {
     return mu_slider_ex(ctx, value, low, high, step, fmt, 0);
 }
 
-int mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {
+mu_ResFlags mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {
     char[MU_MAX_FMT + 1] buf;
-    int res = 0;
+    mu_ResFlags res = 0;
     mu_Id id = mu_get_id(ctx, &value, value.sizeof);
     mu_Rect base = mu_layout_next(ctx);
     mu_Real last = *value;
@@ -1218,20 +1220,20 @@ int mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fm
     return res;
 }
 
-int mu_number(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt) {
+mu_ResFlags mu_number(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt) {
     return mu_number_ex(ctx, value, step, fmt, 0);
 }
 
-int mu_header_ex(mu_Context* ctx, const(char)[] label, mu_OptFlags opt) {
+mu_ResFlags mu_header_ex(mu_Context* ctx, const(char)[] label, mu_OptFlags opt) {
     return header(ctx, label, 0, opt);
 }
 
-int mu_header(mu_Context* ctx, const(char)[] label) {
+mu_ResFlags mu_header(mu_Context* ctx, const(char)[] label) {
     return mu_header_ex(ctx, label, 0);
 }
 
-int mu_begin_treenode_ex(mu_Context* ctx, const(char)[] label, mu_OptFlags opt) {
-    int res = header(ctx, label, 1, opt);
+mu_ResFlags mu_begin_treenode_ex(mu_Context* ctx, const(char)[] label, mu_OptFlags opt) {
+    mu_ResFlags res = header(ctx, label, 1, opt);
     if (res & MU_RES_ACTIVE) {
         get_layout(ctx).indent += ctx.style.indent;
         ctx.id_stack.push(ctx.last_id);
@@ -1239,7 +1241,7 @@ int mu_begin_treenode_ex(mu_Context* ctx, const(char)[] label, mu_OptFlags opt) 
     return res;
 }
 
-int mu_begin_treenode(mu_Context* ctx, const(char)[] label) {
+mu_ResFlags mu_begin_treenode(mu_Context* ctx, const(char)[] label) {
     return mu_begin_treenode_ex(ctx, label, 0);
 }
 
@@ -1277,7 +1279,7 @@ void scrollbar(const(char)[] x, const(char)[] y, const(char)[] w, const(char)[] 
     }
 }
 
-int mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rect, mu_OptFlags opt) {
+mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rect, mu_OptFlags opt) {
     mu_Rect body;
     mu_Id id = mu_get_id(ctx, title.ptr, title.length);
     mu_Container* cnt = get_container(ctx, id, opt);
@@ -1346,7 +1348,7 @@ int mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rect, mu_Op
     return MU_RES_ACTIVE;
 }
 
-int mu_begin_window(mu_Context* ctx, const(char)[] title, mu_Rect rect) {
+mu_ResFlags mu_begin_window(mu_Context* ctx, const(char)[] title, mu_Rect rect) {
     return mu_begin_window_ex(ctx, title, rect, 0);
 }
 
@@ -1365,8 +1367,8 @@ void mu_open_popup(mu_Context* ctx, const(char)[] name) {
     mu_bring_to_front(ctx, cnt);
 }
 
-int mu_begin_popup(mu_Context* ctx, const(char)[] name) {
-    int opt = MU_OPT_POPUP | MU_OPT_AUTOSIZE | MU_OPT_NORESIZE | MU_OPT_NOSCROLL | MU_OPT_NOTITLE | MU_OPT_CLOSED;
+mu_ResFlags mu_begin_popup(mu_Context* ctx, const(char)[] name) {
+    mu_OptFlags opt = MU_OPT_POPUP | MU_OPT_AUTOSIZE | MU_OPT_NORESIZE | MU_OPT_NOSCROLL | MU_OPT_NOTITLE | MU_OPT_CLOSED;
     return mu_begin_window_ex(ctx, name, mu_rect(0, 0, 0, 0), opt);
 }
 
