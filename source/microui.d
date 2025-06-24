@@ -28,8 +28,11 @@
 ** IN THE SOFTWARE.
 */
 
-// TODO: Remove the C strings!!!
+// TODO: Remove C strings from functions. The textinput is the only thing that needs to change I think.
+// TODO: Try to fix the sprintf thingy.
+// TODO: Add doc comments.
 // TODO: Add maybe support for parin and raylib-d?
+// TODO: Maybe think about flag types, but ehh...
 
 module microui;
 
@@ -66,6 +69,8 @@ enum MU_IDSTACK_SIZE        = 32;
 enum MU_LAYOUTSTACK_SIZE    = 16;
 enum MU_CONTAINERPOOL_SIZE  = 48;
 enum MU_TREENODEPOOL_SIZE   = 48;
+enum MU_INPUTTEXT_SIZE      = 1024;
+enum MU_STR_SIZE            = 1024;
 enum MU_MAX_WIDTHS          = 16;
 enum MU_REAL_FMT            = "%.3g";
 enum MU_SLIDER_FMT          = "%.2f";
@@ -224,7 +229,7 @@ struct mu_BaseCommand { int type, size; }
 struct mu_JumpCommand { mu_BaseCommand base; void* dst; }
 struct mu_ClipCommand { mu_BaseCommand base; mu_Rect rect; }
 struct mu_RectCommand { mu_BaseCommand base; mu_Rect rect; mu_Color color; }
-struct mu_TextCommand { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color; char[1] str; }
+struct mu_TextCommand { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color; char[MU_STR_SIZE] str; }
 struct mu_IconCommand { mu_BaseCommand base; mu_Rect rect; int id; mu_Color color; }
 
 union mu_Command {
@@ -276,7 +281,7 @@ struct mu_Style {
 
 struct mu_Context {
     /* callbacks */
-    int function(mu_Font font, const(char)* str, int len) text_width;
+    int function(mu_Font font, const(char)[] str) text_width;
     int function(mu_Font font) text_height;
     void function(mu_Context* ctx, mu_Rect rect, int colorid) draw_frame;
     /* core state */
@@ -314,7 +319,7 @@ struct mu_Context {
     int mouse_pressed;
     int key_down;
     int key_pressed;
-    char[32] input_text;
+    char[MU_INPUTTEXT_SIZE] input_text;
 }
 
 private T mu_min(T)(T a, T b)        => ((a) < (b) ? (a) : (b));
@@ -335,7 +340,7 @@ private int compare_zindex(const(void)* a, const(void)* b) {
     return (*cast(mu_Container**) a).zindex - (*cast(mu_Container**) b).zindex;
 }
 
-private void hash(mu_Id* hash, const(void)* data, int size) {
+private void hash(mu_Id* hash, const(void)* data, size_t size) {
     const(ubyte)* p = cast(const(ubyte)*) data;
     while (size--) {
         *hash = (*hash ^ *p++) * 16777619;
@@ -422,10 +427,10 @@ private int number_textbox(mu_Context* ctx, mu_Real* value, mu_Rect r, mu_Id id)
     return 0;
 }
 
-private int header(mu_Context* ctx, const(char)* label, int istreenode, int opt) {
+private int header(mu_Context* ctx, const(char)[] label, int istreenode, int opt) {
     mu_Rect r;
     int active, expanded;
-    mu_Id id = mu_get_id(ctx, label, cast(int) strlen(label));
+    mu_Id id = mu_get_id(ctx, label.ptr, label.length);
     int idx = mu_pool_get(ctx, ctx.treenode_pool.ptr, MU_TREENODEPOOL_SIZE, id);
     int width = -1;
     mu_layout_row(ctx, 1, &width, 0);
@@ -648,11 +653,12 @@ void mu_end(mu_Context *ctx) {
 }
 
 void mu_set_focus(mu_Context* ctx, mu_Id id) {
-  ctx.focus = id;
-  ctx.updated_focus = 1;
+    ctx.focus = id;
+    ctx.updated_focus = 1;
 }
 
-mu_Id mu_get_id(mu_Context* ctx, const(void)* data, int size) {
+// NOTE(Kapendev): Not sure why this is a `void*`, but ehh. Who cares.
+mu_Id mu_get_id(mu_Context* ctx, const(void)* data, size_t size) {
     int idx = ctx.id_stack.idx;
     mu_Id res = (idx > 0) ? ctx.id_stack.items[idx - 1] : HASH_INITIAL;
     hash(&res, data, size);
@@ -660,7 +666,7 @@ mu_Id mu_get_id(mu_Context* ctx, const(void)* data, int size) {
     return res;
 }
 
-void mu_push_id(mu_Context* ctx, const(void)* data, int size) {
+void mu_push_id(mu_Context* ctx, const(void)* data, size_t size) {
     mu_push(ctx.id_stack, mu_get_id(ctx, data, size));
 }
 
@@ -694,8 +700,8 @@ mu_Container* mu_get_current_container(mu_Context* ctx) {
     return ctx.container_stack.items[ctx.container_stack.idx - 1];
 }
 
-mu_Container* mu_get_container(mu_Context* ctx, const(char)* name) {
-    mu_Id id = mu_get_id(ctx, name, cast(int) strlen(name));
+mu_Container* mu_get_container(mu_Context* ctx, const(char)[] name) {
+    mu_Id id = mu_get_id(ctx, name.ptr, name.length);
     return get_container(ctx, id, 0);
 }
 
@@ -766,22 +772,24 @@ void mu_input_keyup(mu_Context* ctx, int key) {
     ctx.key_down &= ~key;
 }
 
-void mu_input_text(mu_Context* ctx, const(char)* text) {
-    int len = cast(int) (strlen(ctx.input_text.ptr));
-    int size = cast(int) (strlen(text) + 1);
-    mu_expect(len + size <= cast(int) (ctx.input_text.sizeof));
-    memcpy(ctx.input_text.ptr + len, text, size);
+void mu_input_text(mu_Context* ctx, const(char)[] text) {
+    size_t len = strlen(ctx.input_text.ptr);
+    size_t size = text.length;
+    mu_expect(len + size <= ctx.input_text.sizeof);
+    memcpy(ctx.input_text.ptr + len, text.ptr, size);
+    // NOTE(Kapendev): Added this to make it work with slices.
+    ctx.input_text[len + size] = '\0';
 }
 
 /*============================================================================
 ** commandlist
 **============================================================================*/
 
-mu_Command* mu_push_command(mu_Context* ctx, int type, int size) {
+mu_Command* mu_push_command(mu_Context* ctx, int type, size_t size) {
     mu_Command* cmd = cast(mu_Command*) (ctx.command_list.items.ptr + ctx.command_list.idx);
     mu_expect(ctx.command_list.idx + size < MU_COMMANDLIST_SIZE);
     cmd.base.type = type;
-    cmd.base.size = size;
+    cmd.base.size = cast(int) size; // NOTE(Kapendev): Maybe it's `int` because it's easier to guess the size in other languages. No idea.
     ctx.command_list.idx += size;
     return cmd;
 }
@@ -822,17 +830,17 @@ void mu_draw_box(mu_Context* ctx, mu_Rect rect, mu_Color color) {
     mu_draw_rect(ctx, mu_rect(rect.x + rect.w - 1, rect.y, 1, rect.h), color);
 }
 
-void mu_draw_text(mu_Context* ctx, mu_Font font, const(char)* str, int len, mu_Vec2 pos, mu_Color color) {
+void mu_draw_text(mu_Context* ctx, mu_Font font, const(char)[] str, mu_Vec2 pos, mu_Color color) {
     mu_Command* cmd;
-    mu_Rect rect = mu_rect(pos.x, pos.y, ctx.text_width(font, str, len), ctx.text_height(font));
+    mu_Rect rect = mu_rect(pos.x, pos.y, ctx.text_width(font, str), ctx.text_height(font));
     int clipped = mu_check_clip(ctx, rect);
     if (clipped == MU_CLIP_ALL ) { return; }
     if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
     /* add command */
-    if (len < 0) { len = cast(int) strlen(str); }
-    cmd = mu_push_command(ctx, MU_COMMAND_TEXT, cast(int) mu_TextCommand.sizeof + len);
-    memcpy(cmd.text.str.ptr, str, len); // NOTE(Kapendev): WTF is that? I guess `cmd.text.str` it's not just a `char[1]`???
-    cmd.text.str.ptr[len] = '\0'; // NOTE(Kapendev): Had to make `str[len]` into `str.ptr[len]` because microui is weird about its types.
+    // if (len < 0) { len = strlen(str); }
+    cmd = mu_push_command(ctx, MU_COMMAND_TEXT, cast(int) mu_TextCommand.sizeof + str.length); // NOTE(Kapendev): KINDA SUS LINE?
+    memcpy(cmd.text.str.ptr, str.ptr, str.length);
+    cmd.text.str[str.length] = '\0'; // NOTE(Kapendev): Microui uses static strings. Adjust the size in `mu_TextCommand` if necessary.
     cmd.text.pos = pos;
     cmd.text.color = color;
     cmd.text.font = font;
@@ -875,11 +883,12 @@ void mu_layout_end_column(mu_Context* ctx) {
     a.max.y = mu_max(a.max.y, b.max.y);
 }
 
+// NOTE(Kapendev): `items` is the length of `widths`. Negative values are allowed in the array.
 void mu_layout_row(mu_Context* ctx, int items, const(int)* widths, int height) {
     mu_Layout* layout = get_layout(ctx);
-    if (widths) {
+    if (items > 0 && widths) {
         mu_expect(items <= MU_MAX_WIDTHS);
-        memcpy(layout.widths.ptr, widths, items * widths[0].sizeof);
+        memcpy(layout.widths.ptr, widths, widths[0].sizeof * items);
     }
     layout.items = items;
     layout.position = mu_vec2(layout.indent, layout.next_row);
@@ -950,10 +959,11 @@ void mu_draw_control_frame(mu_Context* ctx, mu_Id id, mu_Rect rect, int colorid,
     ctx.draw_frame(ctx, rect, colorid);
 }
 
-void mu_draw_control_text(mu_Context* ctx, const char *str, mu_Rect rect, int colorid, int opt) {
+void mu_draw_control_text(mu_Context* ctx, const(char)[] str, mu_Rect rect, int colorid, int opt) {
     mu_Vec2 pos;
     mu_Font font = ctx.style.font;
-    int tw = ctx.text_width(font, str, -1);
+    // NOTE(Kapendev): Original was `ctx.text_width(font, str, -1)`. WTF IS LENGTH -1? Now the `int` type makes sense. It's used to call `strlen` for you.
+    int tw = ctx.text_width(font, str);
     mu_push_clip_rect(ctx, rect);
     pos.y = rect.y + (rect.h - ctx.text_height(font)) / 2;
     if (opt & MU_OPT_ALIGNCENTER) {
@@ -963,7 +973,7 @@ void mu_draw_control_text(mu_Context* ctx, const char *str, mu_Rect rect, int co
     } else {
         pos.x = rect.x + ctx.style.padding;
     }
-    mu_draw_text(ctx, font, str, -1, pos, ctx.style.colors[colorid]);
+    mu_draw_text(ctx, font, str, pos, ctx.style.colors[colorid]);
     mu_pop_clip_rect(ctx);
 }
 
@@ -989,57 +999,63 @@ void mu_update_control(mu_Context* ctx, mu_Id id, mu_Rect rect, int opt) {
     }
 }
 
-void mu_text(mu_Context* ctx, const(char)* text) {
-    const(char)* start;
-    const(char)* end;
-    const(char)*p = text;
-    int width = -1;
+// NOTE(Kapendev): Might need checking. I replaced lines without thinking too much about it. Original code had bugs too btw.
+void mu_text(mu_Context* ctx, const(char)[] text) {
     mu_Font font = ctx.style.font;
     mu_Color color = ctx.style.colors[MU_COLOR_TEXT];
     mu_layout_begin_column(ctx);
-    mu_layout_row(ctx, 1, &width, ctx.text_height(font));
-    do {
-        mu_Rect r = mu_layout_next(ctx);
-        int w = 0;
-        end = p;
-        start = p;
+    int temp_mu_layout_row_value = -1;
+    mu_layout_row(ctx, 1, &temp_mu_layout_row_value, ctx.text_height(font));
+
+    if (text.length != 0) {
+        const(char)* p = text.ptr;
+        const(char)* start = p;
+        const(char)* end = p;
         do {
-            const(char)* word = p;
-            while (*p && *p != ' ' && *p != '\n') { p++; }
-            w += ctx.text_width(font, word, cast(int) (p - word));
-            if (w > r.w && end != start) { break; }
-            w += ctx.text_width(font, p, 1);
-            end = p++;
-        } while (*end && *end != '\n');
-        mu_draw_text(ctx, font, start, cast(int) (end - start), mu_vec2(r.x, r.y), color);
-        p = end + 1;
-    } while (*end);
+            mu_Rect r = mu_layout_next(ctx);
+            int w = 0;
+            start = p;
+            end = p;
+            do {
+                const(char)* word = p;
+                while (p < text.ptr + text.length && *p != ' ' && *p != '\n') { p += 1; }
+                w += ctx.text_width(font, word[0 .. p - word]); // NOTE(Kapendev): Original was `text_width(font, word, cast(int) (p - word)`.
+                if (w > r.w && end != start) { break; }
+                w += ctx.text_width(font, p[0 .. 1]);           // NOTE(Kapendev): Original was `text_width(font, p, 1)`.
+                end = p++;
+            } while(end < text.ptr + text.length && *end != '\n');
+            mu_draw_text(ctx, font, start[0 .. end - start], mu_vec2(r.x, r.y), color); // NOTE(Kapendev): Original was `mu_draw_text(ctx, font, start, cast(int) (end - start), mu_vec2(r.x, r.y), color)`.
+            p = end + 1;
+        } while(end < text.ptr + text.length);
+    }
     mu_layout_end_column(ctx);
 }
 
-void mu_label(mu_Context* ctx, const(char)* text) {
+void mu_label(mu_Context* ctx, const(char)[] text) {
     mu_draw_control_text(ctx, text, mu_layout_next(ctx), MU_COLOR_TEXT, 0);
 }
 
-int mu_button_ex(mu_Context* ctx, const(char)* label, int icon, int opt) {
+int mu_button_ex(mu_Context* ctx, const(char)[] label, int icon, int opt) {
     int res = 0;
-    mu_Id id = label ? mu_get_id(ctx, label, cast(int) strlen(label)) : mu_get_id(ctx, &icon, icon.sizeof);
+    // NOTE: Original was `label ?` and new one is `label.ptr ?`. They work the same.
+    mu_Id id = label.ptr ? mu_get_id(ctx, label.ptr, label.length) : mu_get_id(ctx, &icon, icon.sizeof);
     mu_Rect r = mu_layout_next(ctx);
     mu_update_control(ctx, id, r, opt);
     /* handle click */
     if (ctx.mouse_pressed == MU_MOUSE_LEFT && ctx.focus == id) { res |= MU_RES_SUBMIT; }
     /* draw */
     mu_draw_control_frame(ctx, id, r, MU_COLOR_BUTTON, opt);
-    if (label) { mu_draw_control_text(ctx, label, r, MU_COLOR_TEXT, opt); }
+    if (label.ptr) { mu_draw_control_text(ctx, label, r, MU_COLOR_TEXT, opt); }
     if (icon) { mu_draw_icon(ctx, icon, r, ctx.style.colors[MU_COLOR_TEXT]); }
     return res;
 }
 
-int mu_button(mu_Context* ctx, const(char)* label) {
+int mu_button(mu_Context* ctx, const(char)[] label) {
     return mu_button_ex(ctx, label, 0, 0);
 }
 
-int mu_checkbox(mu_Context* ctx, const(char)* label, int* state) {
+// TODO(Kapendev): Maybe add a type like `mu_StateFlags`.
+int mu_checkbox(mu_Context* ctx, const(char)[] label, int* state) {
     int res = 0;
     mu_Id id = mu_get_id(ctx, &state, state.sizeof);
     mu_Rect r = mu_layout_next(ctx);
@@ -1060,14 +1076,15 @@ int mu_checkbox(mu_Context* ctx, const(char)* label, int* state) {
     return res;
 }
 
+// TODO(Kapendev): Try to change this to a slice too. No idea what `bufsz` is.
 int mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_Rect r, int opt) {
     int res = 0;
     mu_update_control(ctx, id, r, opt | MU_OPT_HOLDFOCUS);
 
     if (ctx.focus == id) {
         /* handle text input */
-        int len = cast(int) strlen(buf);
-        int n = cast(int) mu_min(bufsz - len - 1, cast(int) strlen(ctx.input_text.ptr));
+        size_t len = strlen(buf);
+        size_t n = mu_min(bufsz - len - 1, strlen(ctx.input_text.ptr));
         if (n > 0) {
             memcpy(buf + len, ctx.input_text.ptr, n);
             len += n;
@@ -1089,21 +1106,22 @@ int mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_Rect r, i
     }
 
     /* draw */
+    size_t buflen = strlen(buf); // NOTE(Kapendev): Added this just to make the code work. This is needed because buf has a new size now.
     mu_draw_control_frame(ctx, id, r, MU_COLOR_BASE, opt);
     if (ctx.focus == id) {
         mu_Color color = ctx.style.colors[MU_COLOR_TEXT];
         mu_Font font = ctx.style.font;
-        int textw = ctx.text_width(font, buf, -1);
+        int textw = ctx.text_width(font, buf[0 .. buflen]); // NOTE(Kapendev): Original was `ctx.text_width(font, buf, -1)`.
         int texth = ctx.text_height(font);
         int ofx = r.w - ctx.style.padding - textw - 1;
         int textx = r.x + mu_min(ofx, ctx.style.padding);
         int texty = r.y + (r.h - texth) / 2;
         mu_push_clip_rect(ctx, r);
-        mu_draw_text(ctx, font, buf, -1, mu_vec2(textx, texty), color);
+        mu_draw_text(ctx, font, buf[0 .. buflen], mu_vec2(textx, texty), color); // NOTE(Kapendev): Original has the same -1 value as the above.
         mu_draw_rect(ctx, mu_rect(textx + textw, texty, 1, texth), color);
         mu_pop_clip_rect(ctx);
     } else {
-        mu_draw_control_text(ctx, buf, r, MU_COLOR_TEXT, opt);
+        mu_draw_control_text(ctx, buf[0 .. buflen], r, MU_COLOR_TEXT, opt);
     }
     return res;
 }
@@ -1118,7 +1136,7 @@ int mu_textbox(mu_Context* ctx, char* buf, int bufsz) {
     return mu_textbox_ex(ctx, buf, bufsz, 0);
 }
 
-int mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)* fmt, int opt) {
+int mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)[] fmt, int opt) {
     char[MU_MAX_FMT + 1] buf;
     mu_Rect thumb;
     int x; int w; int res;
@@ -1147,16 +1165,19 @@ int mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_
     thumb = mu_rect(base.x + x, base.y, w, base.h);
     mu_draw_control_frame(ctx, id, thumb, MU_COLOR_BUTTON, opt);
     /* draw text  */
-    sprintf(buf.ptr, fmt, v);
-    mu_draw_control_text(ctx, buf.ptr, base, MU_COLOR_TEXT, opt);
+    // TODO(Kapendev): See how we can remove this stuff with `sprintf`. This is now unsafe if the format string is not null terminated.
+    // NOTE(Kapendev): This original was not checking sprintf. Bro...
+    int buflen = sprintf(buf.ptr, fmt.ptr, v);
+    if (buflen < 0) buflen = 0;
+    mu_draw_control_text(ctx, buf[0 .. buflen], base, MU_COLOR_TEXT, opt);
     return res;
 }
 
-int mu_slider(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)* fmt) {
+int mu_slider(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)[] fmt) {
     return mu_slider_ex(ctx, value, low, high, step, fmt, 0);
 }
 
-int mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)* fmt, int opt) {
+int mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt, int opt) {
     char[MU_MAX_FMT + 1] buf;
     int res = 0;
     mu_Id id = mu_get_id(ctx, &value, value.sizeof);
@@ -1175,24 +1196,27 @@ int mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)* fmt
     /* draw base */
     mu_draw_control_frame(ctx, id, base, MU_COLOR_BASE, opt);
     /* draw text  */
-    sprintf(buf.ptr, fmt, *value);
-    mu_draw_control_text(ctx, buf.ptr, base, MU_COLOR_TEXT, opt);
+    // TODO(Kapendev): See how we can remove this stuff with `sprintf`. This is now unsafe if the format string is not null terminated.
+    // NOTE(Kapendev): This original was not checking sprintf. Bro...
+    int buflen = sprintf(buf.ptr, fmt.ptr, *value);
+    if (buflen < 0) buflen = 0;
+    mu_draw_control_text(ctx, buf[0 .. buflen], base, MU_COLOR_TEXT, opt);
     return res;
 }
 
-int mu_number(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)* fmt) {
+int mu_number(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt) {
     return mu_number_ex(ctx, value, step, fmt, 0);
 }
 
-int mu_header_ex(mu_Context* ctx, const(char)* label, int opt) {
+int mu_header_ex(mu_Context* ctx, const(char)[] label, int opt) {
     return header(ctx, label, 0, opt);
 }
 
-int mu_header(mu_Context* ctx, const(char)* label) {
+int mu_header(mu_Context* ctx, const(char)[] label) {
     return mu_header_ex(ctx, label, 0);
 }
 
-int mu_begin_treenode_ex(mu_Context* ctx, const(char)* label, int opt) {
+int mu_begin_treenode_ex(mu_Context* ctx, const(char)[] label, int opt) {
     int res = header(ctx, label, 1, opt);
     if (res & MU_RES_ACTIVE) {
         get_layout(ctx).indent += ctx.style.indent;
@@ -1201,7 +1225,7 @@ int mu_begin_treenode_ex(mu_Context* ctx, const(char)* label, int opt) {
     return res;
 }
 
-int mu_begin_treenode(mu_Context* ctx, const(char)* label) {
+int mu_begin_treenode(mu_Context* ctx, const(char)[] label) {
     return mu_begin_treenode_ex(ctx, label, 0);
 }
 
@@ -1215,7 +1239,7 @@ void scrollbar(const(char)[] x, const(char)[] y, const(char)[] w, const(char)[] 
     int maxscroll = cs.y - b.h;
     if (maxscroll > 0 && b.h > 0) {
         mu_Rect base; mu_Rect thumb;
-        mu_Id id = mu_get_id(ctx, ("!scrollbar" ~ y).ptr, 11); // NOTE(Kapendev): `y` was `y.stringof`. In C it was something like `#y`.
+        mu_Id id = mu_get_id(ctx, ("!scrollbar" ~ y).ptr, 11); // NOTE(Kapendev): In C it was something like `#y`.
         /* get sizing/positioning */
         base = *b;
         base.x = b.x + b.w;
@@ -1239,9 +1263,9 @@ void scrollbar(const(char)[] x, const(char)[] y, const(char)[] w, const(char)[] 
     }
 }
 
-int mu_begin_window_ex(mu_Context* ctx, const(char)* title, mu_Rect rect, int opt) {
+int mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rect, int opt) {
     mu_Rect body;
-    mu_Id id = mu_get_id(ctx, title, cast(int) strlen(title));
+    mu_Id id = mu_get_id(ctx, title.ptr, title.length);
     mu_Container* cnt = get_container(ctx, id, opt);
     if (!cnt || !cnt.open) { return 0; }
     mu_push(ctx.id_stack, id);
@@ -1262,7 +1286,7 @@ int mu_begin_window_ex(mu_Context* ctx, const(char)* title, mu_Rect rect, int op
         ctx.draw_frame(ctx, tr, MU_COLOR_TITLEBG);
         /* do title text */
         if (~opt & MU_OPT_NOTITLE) {
-            mu_Id id2 = mu_get_id(ctx, "!title".ptr, 6); // NOTE(Kapendev): Had to change `id` to `id2` because of shadows.
+            mu_Id id2 = mu_get_id(ctx, "!title".ptr, 6); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
             mu_update_control(ctx, id2, tr, opt);
             mu_draw_control_text(ctx, title, tr, MU_COLOR_TITLETEXT, opt);
             if (id2 == ctx.focus && ctx.mouse_down == MU_MOUSE_LEFT) {
@@ -1274,7 +1298,7 @@ int mu_begin_window_ex(mu_Context* ctx, const(char)* title, mu_Rect rect, int op
         }
         /* do `close` button */
         if (~opt & MU_OPT_NOCLOSE) {
-            mu_Id id2 = mu_get_id(ctx, "!close".ptr, 6); // NOTE(Kapendev): Had to change `id` to `id2` because of shadows.
+            mu_Id id2 = mu_get_id(ctx, "!close".ptr, 6); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
             mu_Rect r = mu_rect(tr.x + tr.w - tr.h, tr.y, tr.h, tr.h);
             tr.w -= r.w;
             mu_draw_icon(ctx, MU_ICON_CLOSE, r, ctx.style.colors[MU_COLOR_TITLETEXT]);
@@ -1288,7 +1312,7 @@ int mu_begin_window_ex(mu_Context* ctx, const(char)* title, mu_Rect rect, int op
     /* do `resize` handle */
     if (~opt & MU_OPT_NORESIZE) {
         int sz = ctx.style.title_height;
-        mu_Id id2 = mu_get_id(ctx, "!resize".ptr, 7); // NOTE(Kapendev): Had to change `id` to `id2` because of shadows.
+        mu_Id id2 = mu_get_id(ctx, "!resize".ptr, 7); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
         mu_Rect r = mu_rect(rect.x + rect.w - sz, rect.y + rect.h - sz, sz, sz);
         mu_update_control(ctx, id2, r, opt);
         if (id2 == ctx.focus && ctx.mouse_down == MU_MOUSE_LEFT) {
@@ -1308,7 +1332,7 @@ int mu_begin_window_ex(mu_Context* ctx, const(char)* title, mu_Rect rect, int op
     return MU_RES_ACTIVE;
 }
 
-int mu_begin_window(mu_Context* ctx, const(char)* title, mu_Rect rect) {
+int mu_begin_window(mu_Context* ctx, const(char)[] title, mu_Rect rect) {
     return mu_begin_window_ex(ctx, title, rect, 0);
 }
 
@@ -1317,7 +1341,7 @@ void mu_end_window(mu_Context* ctx) {
     end_root_container(ctx);
 }
 
-void mu_open_popup(mu_Context* ctx, const(char)* name) {
+void mu_open_popup(mu_Context* ctx, const(char)[] name) {
     mu_Container* cnt = mu_get_container(ctx, name);
     /* set as hover root so popup isn't closed in begin_window_ex() */
     ctx.hover_root = ctx.next_hover_root = cnt;
@@ -1327,7 +1351,7 @@ void mu_open_popup(mu_Context* ctx, const(char)* name) {
     mu_bring_to_front(ctx, cnt);
 }
 
-int mu_begin_popup(mu_Context* ctx, const(char)* name) {
+int mu_begin_popup(mu_Context* ctx, const(char)[] name) {
     int opt = MU_OPT_POPUP | MU_OPT_AUTOSIZE | MU_OPT_NORESIZE | MU_OPT_NOSCROLL | MU_OPT_NOTITLE | MU_OPT_CLOSED;
     return mu_begin_window_ex(ctx, name, mu_rect(0, 0, 0, 0), opt);
 }
@@ -1336,9 +1360,9 @@ void mu_end_popup(mu_Context* ctx) {
     mu_end_window(ctx);
 }
 
-void mu_begin_panel_ex(mu_Context* ctx, const(char)* name, int opt) {
+void mu_begin_panel_ex(mu_Context* ctx, const(char)[] name, int opt) {
     mu_Container* cnt;
-    mu_push_id(ctx, name, cast(int) strlen(name));
+    mu_push_id(ctx, name.ptr, name.length);
     cnt = get_container(ctx, ctx.last_id, opt);
     cnt.rect = mu_layout_next(ctx);
     if (~opt & MU_OPT_NOFRAME) { ctx.draw_frame(ctx, cnt.rect, MU_COLOR_PANELBG); }
@@ -1347,7 +1371,7 @@ void mu_begin_panel_ex(mu_Context* ctx, const(char)* name, int opt) {
     mu_push_clip_rect(ctx, cnt.body);
 }
 
-void mu_begin_panel(mu_Context* ctx, const(char)* name) {
+void mu_begin_panel(mu_Context* ctx, const(char)[] name) {
     mu_begin_panel_ex(ctx, name, 0);
 }
 
