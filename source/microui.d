@@ -29,7 +29,8 @@
 */
 
 // TODO: Add doc comments.
-// TODO: Add maybe support for parin and raylib-d?
+// TODO: Add maybe support for parin.
+// TODO: Add maybe attributes.
 
 module microui;
 
@@ -63,8 +64,8 @@ alias mu_OptFlags = mu_Flags;
 alias mu_MouseFlags = mu_Flags;
 alias mu_KeyFlags = mu_Flags;
 
-alias mu_TextWidthFunc = int function(mu_Context* ctx, mu_Font font, const(char)[] str);
-alias mu_TextHeightFunc = int function(mu_Context* ctx, mu_Font font);
+alias mu_TextWidthFunc = int function(mu_Font font, const(char)[] str);
+alias mu_TextHeightFunc = int function(mu_Font font);
 
 private enum HASH_INITIAL = 2166136261; /* A 32bit fnv-1a hash. UwU  */
 private enum RELATIVE = 1;              /* The relative layout type. */
@@ -304,6 +305,7 @@ struct mu_Style {
     int title_height;
     int scrollbar_size;
     int thumb_size;
+    int control_border;
     mu_Array!(mu_Color, MU_COLOR_MAX) colors;
 }
 
@@ -311,7 +313,7 @@ struct mu_Context {
     /* callbacks */
     mu_TextWidthFunc text_width;
     mu_TextHeightFunc text_height;
-    void function(mu_Context* ctx, mu_Rect rect, int colorid) draw_frame;
+    void function(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid) draw_frame;
     /* core state */
     mu_Style _style;
     mu_Style* style;
@@ -354,12 +356,14 @@ private T mu_min(T)(T a, T b)        => ((a) < (b) ? (a) : (b));
 private T mu_max(T)(T a, T b)        => ((a) > (b) ? (a) : (b));
 private T mu_clamp(T)(T x, T a, T b) => mu_min(b, mu_max(a, x));
 
-private void draw_frame(mu_Context* ctx, mu_Rect rect, int colorid) {
+private void draw_frame(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid) {
     mu_draw_rect(ctx, rect, ctx.style.colors[colorid]);
     if (colorid == MU_COLOR_SCROLLBASE || colorid == MU_COLOR_SCROLLTHUMB || colorid == MU_COLOR_TITLEBG) return;
     /* draw border */
     if (ctx.style.colors[MU_COLOR_BORDER].a) {
-        mu_draw_box(ctx, mu_expand_rect(rect, 1), ctx.style.colors[MU_COLOR_BORDER]);
+        foreach (i; 1 .. ctx.style.control_border + 1) {
+            mu_draw_box(ctx, mu_expand_rect(rect, i), ctx.style.colors[MU_COLOR_BORDER]);
+        }
     }
 }
 
@@ -539,15 +543,14 @@ private void end_root_container(mu_Context* ctx) {
     pop_container(ctx);
 }
 
-/// Asserts the condition and prints a message.
 @safe nothrow @nogc pure
-void mu_expect(bool x, const(char)[] message = "Fatal microui error.") => assert(x, message);
+private void mu_expect(bool x, const(char)[] message = "Fatal microui error.") => assert(x, message);
 
 /// Temporary text measurement function for prototyping.
-int mu_temp_text_width_func(mu_Context* ctx, mu_Font font, const(char)[] str) => 200;
+int mu_temp_text_width_func(mu_Font font, const(char)[] str) => 200;
 
 /// Temporary text measurement function for prototyping.
-int mu_temp_text_height_func(mu_Context* ctx, mu_Font font) => 20;
+int mu_temp_text_height_func(mu_Font font) => 20;
 
 extern(C):
 
@@ -586,8 +589,8 @@ void mu_init(mu_Context* ctx) {
     mu_default_style = mu_Style(
         /* font | size | padding | spacing | indent */
         null, mu_Vec2(68, 10), 5, 4, 24,
-        /* title_height | scrollbar_size | thumb_size */
-        24, 12, 8,
+        /* title_height | scrollbar_size | thumb_size | control_border */
+        24, 12, 8, 1,
         mu_Array!(mu_Color, 14)(
             mu_Color(230, 230, 230, 255), /* MU_COLOR_TEXT */
             mu_Color(25,  25,  25,  255), /* MU_COLOR_BORDER */
@@ -607,7 +610,7 @@ void mu_init(mu_Context* ctx) {
     );
     memset(ctx, 0, (*ctx).sizeof);
     ctx.draw_frame = &draw_frame;
-    ctx._style = cast(mu_Style) mu_default_style;
+    ctx._style = mu_default_style;
     ctx.style = &ctx._style;
 }
 
@@ -875,7 +878,7 @@ void mu_draw_box(mu_Context* ctx, mu_Rect rect, mu_Color color) {
 
 void mu_draw_text(mu_Context* ctx, mu_Font font, const(char)[] str, mu_Vec2 pos, mu_Color color) {
     mu_Command* cmd;
-    mu_Rect rect = mu_rect(pos.x, pos.y, ctx.text_width(ctx, font, str), ctx.text_height(ctx, font));
+    mu_Rect rect = mu_rect(pos.x, pos.y, ctx.text_width(font, str), ctx.text_height(font));
     mu_ClipEnum clipped = mu_check_clip(ctx, rect);
     if (clipped == MU_CLIP_ALL ) { return; }
     if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
@@ -1000,19 +1003,19 @@ mu_Rect mu_layout_next(mu_Context* ctx) {
 ** controls
 **============================================================================*/
 
-void mu_draw_control_frame(mu_Context* ctx, mu_Id id, mu_Rect rect, int colorid, mu_OptFlags opt) {
+void mu_draw_control_frame(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_ColorEnum colorid, mu_OptFlags opt) {
     if (opt & MU_OPT_NOFRAME) { return; }
     colorid += (ctx.focus == id) ? 2 : (ctx.hover == id) ? 1 : 0;
     ctx.draw_frame(ctx, rect, colorid);
 }
 
-void mu_draw_control_text(mu_Context* ctx, const(char)[] str, mu_Rect rect, int colorid, mu_OptFlags opt) {
+void mu_draw_control_text(mu_Context* ctx, const(char)[] str, mu_Rect rect, mu_ColorEnum colorid, mu_OptFlags opt) {
     mu_Vec2 pos;
     mu_Font font = ctx.style.font;
     // NOTE(Kapendev): Original was `ctx.text_width(font, str, -1)`. WTF IS LENGTH -1? Now the `int` type makes sense. It's used to call `strlen` for you.
-    int tw = ctx.text_width(ctx, font, str);
+    int tw = ctx.text_width(font, str);
     mu_push_clip_rect(ctx, rect);
-    pos.y = rect.y + (rect.h - ctx.text_height(ctx, font)) / 2;
+    pos.y = rect.y + (rect.h - ctx.text_height(font)) / 2;
     if (opt & MU_OPT_ALIGNCENTER) {
         pos.x = rect.x + (rect.w - tw) / 2;
     } else if (opt & MU_OPT_ALIGNRIGHT) {
@@ -1052,7 +1055,7 @@ void mu_text(mu_Context* ctx, const(char)[] text, int offset = 0) {
     mu_Color color = ctx.style.colors[MU_COLOR_TEXT];
     mu_layout_begin_column(ctx);
     int temp_mu_layout_row_value = -1;
-    mu_layout_row(ctx, 1, &temp_mu_layout_row_value, ctx.text_height(ctx, font));
+    mu_layout_row(ctx, 1, &temp_mu_layout_row_value, ctx.text_height(font));
 
     if (text.length != 0) {
         const(char)* p = text.ptr;
@@ -1066,7 +1069,7 @@ void mu_text(mu_Context* ctx, const(char)[] text, int offset = 0) {
             do {
                 const(char)* word = p;
                 while (p < text.ptr + text.length && *p != ' ' && *p != '\n') { p += 1; }
-                w += ctx.text_width(ctx, font, word[0 .. p - word]); // NOTE(Kapendev): Original was `text_width(font, word, cast(int) (p - word)`.
+                w += ctx.text_width(font, word[0 .. p - word]); // NOTE(Kapendev): Original was `text_width(font, word, cast(int) (p - word)`.
                 if (w > r.w && end != start) { break; }
                 // w += ctx.text_width(font, p[0 .. 1]);        // NOTE(Kapendev): Original was `text_width(font, p, 1)`.
                 end = p++;
@@ -1083,7 +1086,7 @@ void mu_text_block(mu_Context* ctx, const(char)[] text, int width, int offset = 
     mu_layout_begin_column(ctx);
     mu_layout_set_next(ctx, mu_rect(offset, 0, width, 0));
     mu_text(ctx, text);
-    mu_layout_set_next(ctx, mu_rect(offset, ctx.text_height(ctx, font) * 2, width, 0));
+    mu_layout_set_next(ctx, mu_rect(offset, ctx.text_height(font) * 2, width, 0));
     mu_text(ctx, " "); // HAHAHA
     mu_layout_end_column(ctx);
 }
@@ -1178,8 +1181,8 @@ mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_R
     if (ctx.focus == id) {
         mu_Color color = ctx.style.colors[MU_COLOR_TEXT];
         mu_Font font = ctx.style.font;
-        int textw = ctx.text_width(ctx, font, buf[0 .. buflen]); // NOTE(Kapendev): Original was `ctx.text_width(font, buf, -1)`.
-        int texth = ctx.text_height(ctx, font);
+        int textw = ctx.text_width(font, buf[0 .. buflen]); // NOTE(Kapendev): Original was `ctx.text_width(font, buf, -1)`.
+        int texth = ctx.text_height(font);
         int ofx = r.w - ctx.style.padding - textw - 1;
         int textx = r.x + mu_min(ofx, ctx.style.padding);
         int texty = r.y + (r.h - texth) / 2;

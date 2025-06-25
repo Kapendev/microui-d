@@ -6,6 +6,9 @@
 // Version: v0.0.1
 // ---
 
+// TODO: Add doc comments.
+// TODO: Add maybe attributes.
+
 module murl;
 
 public import microui;
@@ -70,12 +73,12 @@ private extern(C) nothrow @nogc {
     void DrawRectangleRec(Rectangle rec, Color color);
 }
 
-int murl_temp_text_width_func(mu_Context* ctx, mu_Font font, const(char)[] str) {
+int murl_temp_text_width_func(mu_Font font, const(char)[] str) {
     auto data = cast(Font*) font;
     return cast(int) MeasureTextEx(*data, str.ptr, data.baseSize, 1).x;
 }
 
-int murl_temp_text_height_func(mu_Context* ctx, mu_Font font) {
+int murl_temp_text_height_func(mu_Font font) {
     auto data = cast(Font*) font;
     return cast(int) data.baseSize;
 }
@@ -84,6 +87,18 @@ extern(C):
 
 void murl_init_with_temp_funcs(mu_Context* ctx, mu_Font font = null) {
     mu_init_with_funcs(ctx, &murl_temp_text_width_func, &murl_temp_text_height_func, font);
+    auto data = cast(Font*) font;
+    ctx.style.size = mu_vec2(data.baseSize * 6, data.baseSize);
+    ctx.style.title_height = data.baseSize + 11;
+    if (data.baseSize <= 16) {
+        ctx.style.control_border = 1;
+    } else if (data.baseSize <= 64) {
+        ctx.style.control_border = 2;
+        ctx.style.spacing += 4;
+    } else {
+        ctx.style.control_border = 3;
+        ctx.style.spacing += 6;
+    }
 }
 
 void murl_handle_input(mu_Context* ctx) {
@@ -134,23 +149,29 @@ void murl_handle_input(mu_Context* ctx) {
 }
 
 void murl_draw(mu_Context* ctx) {
+    auto style_font = cast(Font*) ctx.style.font;
     BeginScissorMode(0, 0, GetScreenWidth(), GetScreenHeight());
     mu_Command *cmd;
     while (mu_next_command(ctx, &cmd)) {
         switch (cmd.type) {
             case MU_COMMAND_TEXT:
-                Font* font = cast(Font*) cmd.text.font;
-                Vector2 text_position = Vector2(cmd.text.pos.x, cmd.text.pos.y);
-                Color text_color = *(cast(Color*) (&cmd.text.color));
-                DrawTextEx(*font, cmd.text.str.ptr, text_position, font.baseSize, 1, text_color);
+                auto text_font = cast(Font*) cmd.text.font;
+                DrawTextEx(
+                    *text_font,
+                    cmd.text.str.ptr,
+                    Vector2(cmd.text.pos.x, cmd.text.pos.y),
+                    text_font.baseSize,
+                    1,
+                    *(cast(Color*) (&cmd.text.color)),
+                );
                 break;
             case MU_COMMAND_RECT:
-                Rectangle rect = Rectangle(cmd.rect.rect.x, cmd.rect.rect.y, cmd.rect.rect.w, cmd.rect.rect.h);
-                Color rect_color = *(cast(Color*) (&cmd.rect.color));
-                DrawRectangleRec(rect, rect_color);
+                DrawRectangleRec(
+                    Rectangle(cmd.rect.rect.x, cmd.rect.rect.y, cmd.rect.rect.w, cmd.rect.rect.h),
+                    *(cast(Color*) (&cmd.rect.color)),
+                );
                 break;
             case MU_COMMAND_ICON:
-                Font* font = cast(Font*) ctx.style.font;
                 const(char)[] icon = "?";
                 switch (cmd.icon.id) {
                     case MU_ICON_CLOSE: icon = "x"; break;
@@ -159,11 +180,17 @@ void murl_draw(mu_Context* ctx) {
                     case MU_ICON_EXPANDED: icon = "-"; break;
                     default: break;
                 }
+                auto ic_width = ctx.text_width(style_font, icon);
+                auto ic_height = ctx.text_height(style_font);
+                auto ic_rect = cmd.icon.rect;
+                auto ic_diff = mu_vec2(ic_rect.w - ic_width, ic_rect.h - ic_height);
+                if (ic_diff.x < 0) ic_diff.x *= -1;
+                if (ic_diff.y < 0) ic_diff.y *= -1;
                 DrawTextEx(
-                    *font,
+                    *style_font,
                     icon.ptr,
-                    Vector2(cmd.icon.rect.x + ctx.text_width(ctx, font, icon) + 1, cmd.icon.rect.y + (ctx.text_height(ctx, font) / 2) + 1),
-                    font.baseSize,
+                    Vector2(ic_rect.x + ic_diff.x / 2, ic_rect.y + ic_diff.y / 2),
+                    style_font.baseSize,
                     1,
                     *(cast(Color*) &cmd.icon.color),
                 );
