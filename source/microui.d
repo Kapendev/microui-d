@@ -28,17 +28,14 @@
 ** IN THE SOFTWARE.
 */
 
-// TODO: Remove C strings from functions. The textinput is the only thing that needs to change I think.
-// TODO: Try to fix the sprintf thingy.
 // TODO: Add doc comments.
 // TODO: Add maybe support for parin and raylib-d?
 
 module microui;
 
-// External dependencies required by microui.
 private extern(C) {
+    /* External dependencies required by microui. */
     alias STDLIB_QSORT_FUNC = int function(const(void)* a, const(void)* b);
-
     int sprintf(char* buffer, const(char)* format, ...);
     double strtod(const(char)* str, char** str_end);
     void qsort(void* ptr, size_t count, size_t size, STDLIB_QSORT_FUNC comp);
@@ -65,6 +62,9 @@ alias mu_ResFlags = mu_Flags;
 alias mu_OptFlags = mu_Flags;
 alias mu_MouseFlags = mu_Flags;
 alias mu_KeyFlags = mu_Flags;
+
+alias mu_TextWidthFunc = int function(mu_Context* ctx, mu_Font font, const(char)[] str);
+alias mu_TextHeightFunc = int function(mu_Context* ctx, mu_Font font);
 
 private enum HASH_INITIAL = 2166136261; /* A 32bit fnv-1a hash. UwU  */
 private enum RELATIVE = 1;              /* The relative layout type. */
@@ -153,12 +153,14 @@ enum : mu_OptFlags {
 }
 
 enum : mu_MouseFlags {
+    MU_MOUSE_NONE   = 0,
     MU_MOUSE_LEFT   = (1 << 0),
     MU_MOUSE_RIGHT  = (1 << 1),
     MU_MOUSE_MIDDLE = (1 << 2),
 }
 
 enum : mu_KeyFlags {
+    MU_KEY_NONE      = 0,
     MU_KEY_SHIFT     = (1 << 0),
     MU_KEY_CTRL      = (1 << 1),
     MU_KEY_ALT       = (1 << 2),
@@ -307,8 +309,8 @@ struct mu_Style {
 
 struct mu_Context {
     /* callbacks */
-    int function(mu_Font font, const(char)[] str) text_width;
-    int function(mu_Font font) text_height;
+    mu_TextWidthFunc text_width;
+    mu_TextHeightFunc text_height;
     void function(mu_Context* ctx, mu_Rect rect, int colorid) draw_frame;
     /* core state */
     mu_Style _style;
@@ -351,7 +353,6 @@ struct mu_Context {
 private T mu_min(T)(T a, T b)        => ((a) < (b) ? (a) : (b));
 private T mu_max(T)(T a, T b)        => ((a) > (b) ? (a) : (b));
 private T mu_clamp(T)(T x, T a, T b) => mu_min(b, mu_max(a, x));
-private void mu_expect(T)(T x)       => assert(x, "Fatal microui error.");
 
 private void draw_frame(mu_Context* ctx, mu_Rect rect, int colorid) {
     mu_draw_rect(ctx, rect, ctx.style.colors[colorid]);
@@ -538,6 +539,16 @@ private void end_root_container(mu_Context* ctx) {
     pop_container(ctx);
 }
 
+/// Asserts the condition and prints a message.
+@safe nothrow @nogc pure
+void mu_expect(bool x, const(char)[] message = "Fatal microui error.") => assert(x, message);
+
+/// Temporary text measurement function for prototyping.
+int mu_temp_text_width_func(mu_Context* ctx, mu_Font font, const(char)[] str) => 200;
+
+/// Temporary text measurement function for prototyping.
+int mu_temp_text_height_func(mu_Context* ctx, mu_Font font) => 20;
+
 extern(C):
 
 mu_Vec2 mu_vec2(int x, int y) {
@@ -600,8 +611,25 @@ void mu_init(mu_Context* ctx) {
     ctx.style = &ctx._style;
 }
 
+void mu_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeightFunc height, mu_Font font = null) {
+    mu_init(ctx);
+    ctx.text_width = width;
+    ctx.text_height = height;
+    ctx.style.font = font;
+}
+
+void mu_init_with_temp_funcs(mu_Context* ctx, mu_Font font = null) {
+    mu_init(ctx);
+    ctx.text_width = &mu_temp_text_width_func;
+    ctx.text_height = &mu_temp_text_height_func;
+    ctx.style.font = font;
+}
+
 void mu_begin(mu_Context* ctx) {
-    mu_expect(ctx.text_width && ctx.text_height);
+    mu_expect(
+        ctx.text_width && ctx.text_height,
+        "Missing text measurement functions (ctx.text_width, ctx.text_height).",
+    );
     ctx.command_list.idx = 0;
     ctx.root_list.idx = 0;
     ctx.scroll_target = null;
@@ -673,7 +701,6 @@ void mu_set_focus(mu_Context* ctx, mu_Id id) {
     ctx.updated_focus = 1;
 }
 
-// NOTE(Kapendev): Not sure why this is a `void*`, but ehh. Who cares.
 mu_Id mu_get_id(mu_Context* ctx, const(void)* data, size_t size) {
     int idx = ctx.id_stack.idx;
     mu_Id res = (idx > 0) ? ctx.id_stack.items[idx - 1] : HASH_INITIAL;
@@ -763,13 +790,13 @@ void mu_input_mousemove(mu_Context* ctx, int x, int y) {
     ctx.mouse_pos = mu_vec2(x, y);
 }
 
-void mu_input_mousedown(mu_Context* ctx, int x, int y, int btn) {
+void mu_input_mousedown(mu_Context* ctx, int x, int y, mu_MouseFlags btn) {
     mu_input_mousemove(ctx, x, y);
     ctx.mouse_down |= btn;
     ctx.mouse_pressed |= btn;
 }
 
-void mu_input_mouseup(mu_Context* ctx, int x, int y, int btn) {
+void mu_input_mouseup(mu_Context* ctx, int x, int y, mu_MouseFlags btn) {
     mu_input_mousemove(ctx, x, y);
     ctx.mouse_down &= ~btn;
 }
@@ -848,7 +875,7 @@ void mu_draw_box(mu_Context* ctx, mu_Rect rect, mu_Color color) {
 
 void mu_draw_text(mu_Context* ctx, mu_Font font, const(char)[] str, mu_Vec2 pos, mu_Color color) {
     mu_Command* cmd;
-    mu_Rect rect = mu_rect(pos.x, pos.y, ctx.text_width(font, str), ctx.text_height(font));
+    mu_Rect rect = mu_rect(pos.x, pos.y, ctx.text_width(ctx, font, str), ctx.text_height(ctx, font));
     mu_ClipEnum clipped = mu_check_clip(ctx, rect);
     if (clipped == MU_CLIP_ALL ) { return; }
     if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
@@ -899,7 +926,7 @@ void mu_layout_end_column(mu_Context* ctx) {
     a.max.y = mu_max(a.max.y, b.max.y);
 }
 
-// NOTE(Kapendev): `items` is the length of `widths`. Negative values are allowed in the array.
+// NOTE(Kapendev): `items` is the length of `widths`. Negative values and `items` without `widths` are allowed.
 void mu_layout_row(mu_Context* ctx, int items, const(int)* widths, int height) {
     mu_Layout* layout = get_layout(ctx);
     if (items > 0 && widths) {
@@ -912,6 +939,10 @@ void mu_layout_row(mu_Context* ctx, int items, const(int)* widths, int height) {
     layout.item_index = 0;
 }
 
+void mu_layout_row_single(mu_Context* ctx, int width, int height) {
+    mu_layout_row(ctx, 1, &width, height);
+}
+
 void mu_layout_width(mu_Context* ctx, int width) {
     get_layout(ctx).size.x = width;
 }
@@ -920,7 +951,7 @@ void mu_layout_height(mu_Context* ctx, int height) {
     get_layout(ctx).size.y = height;
 }
 
-void mu_layout_set_next(mu_Context* ctx, mu_Rect r, bool relative) {
+void mu_layout_set_next(mu_Context* ctx, mu_Rect r, bool relative = true) {
     mu_Layout* layout = get_layout(ctx);
     layout.next = r;
     layout.next_type = relative ? RELATIVE : ABSOLUTE;
@@ -979,9 +1010,9 @@ void mu_draw_control_text(mu_Context* ctx, const(char)[] str, mu_Rect rect, int 
     mu_Vec2 pos;
     mu_Font font = ctx.style.font;
     // NOTE(Kapendev): Original was `ctx.text_width(font, str, -1)`. WTF IS LENGTH -1? Now the `int` type makes sense. It's used to call `strlen` for you.
-    int tw = ctx.text_width(font, str);
+    int tw = ctx.text_width(ctx, font, str);
     mu_push_clip_rect(ctx, rect);
-    pos.y = rect.y + (rect.h - ctx.text_height(font)) / 2;
+    pos.y = rect.y + (rect.h - ctx.text_height(ctx, font)) / 2;
     if (opt & MU_OPT_ALIGNCENTER) {
         pos.x = rect.x + (rect.w - tw) / 2;
     } else if (opt & MU_OPT_ALIGNRIGHT) {
@@ -1016,12 +1047,12 @@ void mu_update_control(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_OptFlags opt)
 }
 
 // NOTE(Kapendev): Might need checking. I replaced lines without thinking too much about it. Original code had bugs too btw.
-void mu_text(mu_Context* ctx, const(char)[] text) {
+void mu_text(mu_Context* ctx, const(char)[] text, int offset = 0) {
     mu_Font font = ctx.style.font;
     mu_Color color = ctx.style.colors[MU_COLOR_TEXT];
     mu_layout_begin_column(ctx);
     int temp_mu_layout_row_value = -1;
-    mu_layout_row(ctx, 1, &temp_mu_layout_row_value, ctx.text_height(font));
+    mu_layout_row(ctx, 1, &temp_mu_layout_row_value, ctx.text_height(ctx, font));
 
     if (text.length != 0) {
         const(char)* p = text.ptr;
@@ -1035,15 +1066,25 @@ void mu_text(mu_Context* ctx, const(char)[] text) {
             do {
                 const(char)* word = p;
                 while (p < text.ptr + text.length && *p != ' ' && *p != '\n') { p += 1; }
-                w += ctx.text_width(font, word[0 .. p - word]); // NOTE(Kapendev): Original was `text_width(font, word, cast(int) (p - word)`.
+                w += ctx.text_width(ctx, font, word[0 .. p - word]); // NOTE(Kapendev): Original was `text_width(font, word, cast(int) (p - word)`.
                 if (w > r.w && end != start) { break; }
                 // w += ctx.text_width(font, p[0 .. 1]);        // NOTE(Kapendev): Original was `text_width(font, p, 1)`.
                 end = p++;
             } while(end < text.ptr + text.length && *end != '\n');
-            mu_draw_text(ctx, font, start[0 .. end - start], mu_vec2(r.x, r.y), color); // NOTE(Kapendev): Original was `mu_draw_text(ctx, font, start, cast(int) (end - start), mu_vec2(r.x, r.y), color)`.
+            mu_draw_text(ctx, font, start[0 .. end - start], mu_vec2(r.x + offset, r.y), color); // NOTE(Kapendev): Original was `mu_draw_text(ctx, font, start, cast(int) (end - start), mu_vec2(r.x, r.y), color)`.
             p = end + 1;
         } while(end < text.ptr + text.length);
     }
+    mu_layout_end_column(ctx);
+}
+
+void mu_text_block(mu_Context* ctx, const(char)[] text, int width, int offset = 0) {
+    mu_Font font = ctx.style.font;
+    mu_layout_begin_column(ctx);
+    mu_layout_set_next(ctx, mu_rect(offset, 0, width, 0));
+    mu_text(ctx, text);
+    mu_layout_set_next(ctx, mu_rect(offset, ctx.text_height(ctx, font) * 2, width, 0));
+    mu_text(ctx, " "); // HAHAHA
     mu_layout_end_column(ctx);
 }
 
@@ -1070,7 +1111,7 @@ mu_ResFlags mu_button(mu_Context* ctx, const(char)[] label) {
     return mu_button_ex(ctx, label, 0, 0);
 }
 
-mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, int* state) {
+mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, ref bool state) {
     mu_ResFlags res = 0;
     mu_Id id = mu_get_id(ctx, &state, state.sizeof);
     mu_Rect r = mu_layout_next(ctx);
@@ -1079,11 +1120,11 @@ mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, int* state) {
     /* handle click */
     if (ctx.mouse_pressed == MU_MOUSE_LEFT && ctx.focus == id) {
         res |= MU_RES_CHANGE;
-        *state = !*state;
+        state = !state;
     }
     /* draw */
     mu_draw_control_frame(ctx, id, box, MU_COLOR_BASE, 0);
-    if (*state) {
+    if (state) {
         mu_draw_icon(ctx, MU_ICON_CHECK, box, ctx.style.colors[MU_COLOR_TEXT]);
     }
     r = mu_rect(r.x + box.w, r.y, r.w - box.w, r.h);
@@ -1091,7 +1132,6 @@ mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, int* state) {
     return res;
 }
 
-// TODO(Kapendev): Try to change this to a slice too. No idea what `bufsz` is.
 mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_Rect r, mu_OptFlags opt) {
     mu_ResFlags res = 0;
     mu_update_control(ctx, id, r, opt | MU_OPT_HOLDFOCUS);
@@ -1108,9 +1148,21 @@ mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_R
         }
         /* handle backspace */
         if (ctx.key_pressed & MU_KEY_BACKSPACE && len > 0) {
-            /* skip utf-8 continuation bytes */
-            while ((buf[--len] & 0xc0) == 0x80 && len > 0) {}
-            buf[len] = '\0';
+            if (ctx.key_down & MU_KEY_CTRL) {
+                buf[0] = '\0';
+            } else if (ctx.key_down & MU_KEY_ALT && len > 0) {
+                while (buf[len - 1] == ' ') { len -= 1; }
+                while (len > 0) {
+                    /* skip utf-8 continuation bytes */
+                    while ((buf[--len] & 0xc0) == 0x80 && len > 0) {}
+                    if (len == 0 || buf[len - 1] == ' ') break;
+                }
+                buf[len] = '\0';
+            } else if (len > 0) {
+                /* skip utf-8 continuation bytes */
+                while ((buf[--len] & 0xc0) == 0x80 && len > 0) {}
+                buf[len] = '\0';
+            }
             res |= MU_RES_CHANGE;
         }
         /* handle return */
@@ -1126,8 +1178,8 @@ mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_R
     if (ctx.focus == id) {
         mu_Color color = ctx.style.colors[MU_COLOR_TEXT];
         mu_Font font = ctx.style.font;
-        int textw = ctx.text_width(font, buf[0 .. buflen]); // NOTE(Kapendev): Original was `ctx.text_width(font, buf, -1)`.
-        int texth = ctx.text_height(font);
+        int textw = ctx.text_width(ctx, font, buf[0 .. buflen]); // NOTE(Kapendev): Original was `ctx.text_width(font, buf, -1)`.
+        int texth = ctx.text_height(ctx, font);
         int ofx = r.w - ctx.style.padding - textw - 1;
         int textx = r.x + mu_min(ofx, ctx.style.padding);
         int texty = r.y + (r.h - texth) / 2;
@@ -1152,7 +1204,13 @@ mu_ResFlags mu_textbox(mu_Context* ctx, char* buf, int bufsz) {
 }
 
 mu_ResFlags mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {
-    char[MU_MAX_FMT + 1] buf;
+    // Used for the `sprintf` function.
+    char[MU_MAX_FMT + 1] fmt_buf = void;
+    mu_expect(fmt_buf.length > fmt.length);
+    memcpy(fmt_buf.ptr, fmt.ptr, fmt.length);
+    fmt_buf[fmt.length] = '\0';
+
+    char[MU_MAX_FMT + 1] buf = void;
     int x; int w;
     mu_Rect thumb;
     mu_ResFlags res = 0;
@@ -1181,9 +1239,8 @@ mu_ResFlags mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real h
     thumb = mu_rect(base.x + x, base.y, w, base.h);
     mu_draw_control_frame(ctx, id, thumb, MU_COLOR_BUTTON, opt);
     /* draw text  */
-    // TODO(Kapendev): See how we can remove this stuff with `sprintf`. This is now unsafe if the format string is not null terminated.
-    // NOTE(Kapendev): This original was not checking sprintf. Bro...
-    int buflen = sprintf(buf.ptr, fmt.ptr, v);
+    // This original was not checking the result of `sprintf`...
+    int buflen = sprintf(buf.ptr, fmt_buf.ptr, v);
     if (buflen < 0) buflen = 0;
     mu_draw_control_text(ctx, buf[0 .. buflen], base, MU_COLOR_TEXT, opt);
     return res;
@@ -1194,7 +1251,13 @@ mu_ResFlags mu_slider(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high
 }
 
 mu_ResFlags mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {
-    char[MU_MAX_FMT + 1] buf;
+    // Used for the `sprintf` function.
+    char[MU_MAX_FMT + 1] fmt_buf = void;
+    mu_expect(fmt_buf.length > fmt.length);
+    memcpy(fmt_buf.ptr, fmt.ptr, fmt.length);
+    fmt_buf[fmt.length] = '\0';
+
+    char[MU_MAX_FMT + 1] buf = void;
     mu_ResFlags res = 0;
     mu_Id id = mu_get_id(ctx, &value, value.sizeof);
     mu_Rect base = mu_layout_next(ctx);
@@ -1212,9 +1275,8 @@ mu_ResFlags mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(ch
     /* draw base */
     mu_draw_control_frame(ctx, id, base, MU_COLOR_BASE, opt);
     /* draw text  */
-    // TODO(Kapendev): See how we can remove this stuff with `sprintf`. This is now unsafe if the format string is not null terminated.
-    // NOTE(Kapendev): This original was not checking sprintf. Bro...
-    int buflen = sprintf(buf.ptr, fmt.ptr, *value);
+    // This original was not checking the result of `sprintf`...
+    int buflen = sprintf(buf.ptr, fmt_buf.ptr, *value);
     if (buflen < 0) buflen = 0;
     mu_draw_control_text(ctx, buf[0 .. buflen], base, MU_COLOR_TEXT, opt);
     return res;
