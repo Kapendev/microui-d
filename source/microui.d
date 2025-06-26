@@ -48,6 +48,8 @@ private extern(C) {
 private extern(C) __gshared mu_Rect mu_unclipped_rect = { 0, 0, 0x1000000, 0x1000000 };
 private extern(C) __gshared mu_Style mu_default_style;
 
+static assert(mu_Command.sizeof <= MU_STR_SIZE, "Type `mu_Command` must fit within `MU_STR_SIZE` bytes (used for embedded strings).");
+
 alias mu_Real = float;
 alias mu_Id = uint;
 alias mu_Font = void*;
@@ -71,104 +73,110 @@ private enum HASH_INITIAL = 2166136261; /* A 32bit fnv-1a hash. UwU  */
 private enum RELATIVE = 1;              /* The relative layout type. */
 private enum ABSOLUTE = 2;              /* The absolute layout type. */
 
-enum MU_D_VERSION           = "v0.0.1";
-enum MU_VERSION             = "2.02";
-enum MU_COMMANDLIST_SIZE    = 256 * 1024;
-enum MU_ROOTLIST_SIZE       = 32;
-enum MU_CONTAINERSTACK_SIZE = 32;
-enum MU_CLIPSTACK_SIZE      = 32;
-enum MU_IDSTACK_SIZE        = 32;
-enum MU_LAYOUTSTACK_SIZE    = 16;
-enum MU_CONTAINERPOOL_SIZE  = 48;
-enum MU_TREENODEPOOL_SIZE   = 48;
-enum MU_INPUTTEXT_SIZE      = 1024;
-enum MU_STR_SIZE            = 1024;
-enum MU_MAX_WIDTHS          = 16;
-enum MU_REAL_FMT            = "%.3g";
-enum MU_SLIDER_FMT          = "%.2f";
-enum MU_MAX_FMT             = 127;
+enum MU_D_VERSION           = "v0.0.1";          /// Version of the D language rewrite.
+enum MU_VERSION             = "2.02";            /// Version of the original microui C library.
+enum MU_COMMANDLIST_SIZE    = 256 * MU_STR_SIZE; /// Size of the command list, in bytes. Commands include extra space for strings. See `MU_STR_SIZE`.
+enum MU_ROOTLIST_SIZE       = 32;                /// Maximum number of root containers (windows).
+enum MU_CONTAINERSTACK_SIZE = 32;                /// Max depth for container stack.
+enum MU_CLIPSTACK_SIZE      = 32;                /// Max depth for clipping region stack.
+enum MU_IDSTACK_SIZE        = 32;                /// Max depth for ID stack.
+enum MU_LAYOUTSTACK_SIZE    = 16;                /// Max depth for layout stack.
+enum MU_CONTAINERPOOL_SIZE  = 48;                /// Number of reusable containers.
+enum MU_TREENODEPOOL_SIZE   = 48;                /// Number of reusable tree nodes.
+enum MU_INPUTTEXT_SIZE      = 1024;              /// Maximum length of input text buffers.
+enum MU_STR_SIZE            = 1024;              /// Maximum length of command strings.
+enum MU_MAX_WIDTHS          = 16;                /// Maximum number of columns per layout row.
+enum MU_REAL_FMT            = "%.3g";            /// Format string used for real numbers.
+enum MU_SLIDER_FMT          = "%.2f";            /// Format string used for slider labels.
+enum MU_MAX_FMT             = 127;               /// Max length of any formatted string.
 
 enum : mu_ClipEnum {
-    MU_CLIP_NONE = 0,
-    MU_CLIP_PART = 1,
-    MU_CLIP_ALL,
+    MU_CLIP_NONE = 0, /// No clipping.
+    MU_CLIP_PART = 1, /// Partial clipping (for scrollable areas).
+    MU_CLIP_ALL,      /// Full clipping to container bounds.
 }
 
 enum : mu_CommandEnum {
-    MU_COMMAND_NONE = 0,
-    MU_COMMAND_JUMP = 1,
-    MU_COMMAND_CLIP,
-    MU_COMMAND_RECT,
-    MU_COMMAND_TEXT,
-    MU_COMMAND_ICON,
-    MU_COMMAND_MAX,
+    MU_COMMAND_NONE = 0, /// No command.
+    MU_COMMAND_JUMP = 1, /// Jump to another command in the buffer.
+    MU_COMMAND_CLIP,     /// Set a clipping region.
+    MU_COMMAND_RECT,     /// Draw a rectangle.
+    MU_COMMAND_TEXT,     /// Draw text.
+    MU_COMMAND_ICON,     /// Draw an icon.
+    MU_COMMAND_MAX,      /// Number of command types.
 }
 
 enum : mu_ColorEnum {
-    MU_COLOR_TEXT,
-    MU_COLOR_BORDER,
-    MU_COLOR_WINDOWBG,
-    MU_COLOR_TITLEBG,
-    MU_COLOR_TITLETEXT,
-    MU_COLOR_PANELBG,
-    MU_COLOR_BUTTON,
-    MU_COLOR_BUTTONHOVER,
-    MU_COLOR_BUTTONFOCUS,
-    MU_COLOR_BASE,
-    MU_COLOR_BASEHOVER,
-    MU_COLOR_BASEFOCUS,
-    MU_COLOR_SCROLLBASE,
-    MU_COLOR_SCROLLTHUMB,
-    MU_COLOR_MAX,
+    MU_COLOR_TEXT,        /// Default text color.
+    MU_COLOR_BORDER,      /// Border color for controls.
+    MU_COLOR_WINDOWBG,    /// Background color of windows.
+    MU_COLOR_TITLEBG,     /// Background color of window titles.
+    MU_COLOR_TITLETEXT,   /// Text color for window titles.
+    MU_COLOR_PANELBG,     /// Background color of panels.
+    MU_COLOR_BUTTON,      /// Default button color.
+    MU_COLOR_BUTTONHOVER, /// Button color on hover.
+    MU_COLOR_BUTTONFOCUS, /// Button color when focused.
+    MU_COLOR_BASE,        /// Base background for text input or sliders.
+    MU_COLOR_BASEHOVER,   /// Hover color for base controls.
+    MU_COLOR_BASEFOCUS,   /// Focus color for base controls.
+    MU_COLOR_SCROLLBASE,  /// Background of scrollbars.
+    MU_COLOR_SCROLLTHUMB, /// Scrollbar thumb color.
+    MU_COLOR_MAX,         /// Number of color types.
 }
 
 enum : mu_IconEnum {
-    MU_ICON_NONE = 0,
-    MU_ICON_CLOSE = 1,
-    MU_ICON_CHECK,
-    MU_ICON_COLLAPSED,
-    MU_ICON_EXPANDED,
-    MU_ICON_MAX,
+    MU_ICON_NONE = 0,  /// No icon.
+    MU_ICON_CLOSE = 1, /// Close icon.
+    MU_ICON_CHECK,     /// Checkmark icon.
+    MU_ICON_COLLAPSED, /// Collapsed tree icon.
+    MU_ICON_EXPANDED,  /// Expanded tree icon.
+    MU_ICON_MAX,       /// Number of icon types.
 }
 
 enum : mu_ResFlags {
-    MU_RES_ACTIVE = (1 << 0),
-    MU_RES_SUBMIT = (1 << 1),
-    MU_RES_CHANGE = (1 << 2),
+    MU_RES_NONE   = 0,        /// No result.
+    MU_RES_ACTIVE = (1 << 0), /// Control is active.
+    MU_RES_SUBMIT = (1 << 1), /// Control triggered an action.
+    MU_RES_CHANGE = (1 << 2), /// Control value changed.
 }
 
 enum : mu_OptFlags {
-    MU_OPT_ALIGNCENTER = (1 << 0),
-    MU_OPT_ALIGNRIGHT  = (1 << 1),
-    MU_OPT_NOINTERACT  = (1 << 2),
-    MU_OPT_NOFRAME     = (1 << 3),
-    MU_OPT_NORESIZE    = (1 << 4),
-    MU_OPT_NOSCROLL    = (1 << 5),
-    MU_OPT_NOCLOSE     = (1 << 6),
-    MU_OPT_NOTITLE     = (1 << 7),
-    MU_OPT_HOLDFOCUS   = (1 << 8),
-    MU_OPT_AUTOSIZE    = (1 << 9),
-    MU_OPT_POPUP       = (1 << 10),
-    MU_OPT_CLOSED      = (1 << 11),
-    MU_OPT_EXPANDED    = (1 << 12),
+    MU_OPT_NONE        = 0,         /// No options.
+    MU_OPT_ALIGNCENTER = (1 << 0),  /// Center-align control content.
+    MU_OPT_ALIGNRIGHT  = (1 << 1),  /// Right-align control content.
+    MU_OPT_NOINTERACT  = (1 << 2),  /// Disable interaction.
+    MU_OPT_NOFRAME     = (1 << 3),  /// Draw control without a frame.
+    MU_OPT_NORESIZE    = (1 << 4),  /// Disable resizing for windows.
+    MU_OPT_NOSCROLL    = (1 << 5),  /// Disable scrolling for containers.
+    MU_OPT_NOCLOSE     = (1 << 6),  /// Remove close button from window.
+    MU_OPT_NOTITLE     = (1 << 7),  /// Remove title bar from window.
+    MU_OPT_HOLDFOCUS   = (1 << 8),  /// Keep control focused after click.
+    MU_OPT_AUTOSIZE    = (1 << 9),  /// Automatically size to content.
+    MU_OPT_POPUP       = (1 << 10), /// Mark as popup (draws on top).
+    MU_OPT_CLOSED      = (1 << 11), /// Window starts closed.
+    MU_OPT_EXPANDED    = (1 << 12), /// Window starts expanded.
 }
 
 enum : mu_MouseFlags {
-    MU_MOUSE_NONE   = 0,
-    MU_MOUSE_LEFT   = (1 << 0),
-    MU_MOUSE_RIGHT  = (1 << 1),
-    MU_MOUSE_MIDDLE = (1 << 2),
+    MU_MOUSE_NONE   = 0,        /// No mouse button.
+    MU_MOUSE_LEFT   = (1 << 0), /// Left mouse button.
+    MU_MOUSE_RIGHT  = (1 << 1), /// Right mouse button.
+    MU_MOUSE_MIDDLE = (1 << 2), /// Middle mouse button.
 }
 
 enum : mu_KeyFlags {
-    MU_KEY_NONE      = 0,
-    MU_KEY_SHIFT     = (1 << 0),
-    MU_KEY_CTRL      = (1 << 1),
-    MU_KEY_ALT       = (1 << 2),
-    MU_KEY_BACKSPACE = (1 << 3),
-    MU_KEY_RETURN    = (1 << 4),
+    MU_KEY_NONE      = 0,        /// No key.
+    MU_KEY_SHIFT     = (1 << 0), /// Shift key pressed.
+    MU_KEY_CTRL      = (1 << 1), /// Control key pressed.
+    MU_KEY_ALT       = (1 << 2), /// Alt key pressed.
+    MU_KEY_BACKSPACE = (1 << 3), /// Backspace key pressed.
+    MU_KEY_RETURN    = (1 << 4), /// Return key pressed.
 }
 
+/// A fixed-capacity array allocated on the program stack.
+// It exists mainly because of WASM support.
+// LDC and BetterC don't like static arrays of structs because of type info stuff.
+// You can make a WASM build without BetterC, but this solution avoids compiler flags.
 struct mu_Array(T, size_t N) {
     align(T.alignof) ubyte[T.sizeof * N] data;
 
@@ -192,13 +200,11 @@ struct mu_Array(T, size_t N) {
         return items[];
     }
 
-    // D calls this function when the slice operator is used. Does something but I do not remember what lol.
     pragma(inline, true)
     T[] opIndex(T[] slice) {
         return slice;
     }
 
-    // D will let you get the pointer of the array item if you return a ref value.
     pragma(inline, true)
     ref T opIndex(size_t i) {
         return items[i];
@@ -219,17 +225,20 @@ struct mu_Array(T, size_t N) {
         return N;
     }
 
+    /// Returns the items of the array.
     pragma(inline, true) @trusted
     T[] items() {
         return (cast(T*) data.ptr)[0 .. N];
     }
 
+    /// Returns the pointer of the array.
     pragma(inline, true) @trusted
     T* ptr() {
         return cast(T*) data.ptr;
     }
 }
 
+/// A fixed-capacity stack allocated on the program stack.
 struct mu_Stack(T, size_t N) {
     int idx;
     mu_Array!(T, N) data = void;
@@ -238,29 +247,46 @@ struct mu_Stack(T, size_t N) {
 
     @safe nothrow @nogc:
 
+    /// Pushes a value onto the stack.
     void push(T val) {
         items[idx] = val;
         idx += 1; /* incremented after incase `val` uses this value */
     }
 
+    /// Pops a value off the stack.
     void pop() {
         mu_expect(idx > 0);
         idx -= 1;
     }
 }
 
+/// A 2D vector using ints.
 struct mu_Vec2 { int x, y; }
+/// A 2D rectangle using ints.
 struct mu_Rect { int x, y, w, h; }
+/// A RGBA color using ubytes.
 struct mu_Color { ubyte r, g, b, a; }
+/// A pool item.
 struct mu_PoolItem { mu_Id id; int last_update; }
 
+/// Base structure for all render commands, containing type and size metadata.
 struct mu_BaseCommand { mu_CommandEnum type; int size; }
+/// Command to jump to another location in the command buffer.
 struct mu_JumpCommand { mu_BaseCommand base; void* dst; }
+/// Command to set a clipping rectangle.
 struct mu_ClipCommand { mu_BaseCommand base; mu_Rect rect; }
+/// Command to draw a rectangle with a given color.
 struct mu_RectCommand { mu_BaseCommand base; mu_Rect rect; mu_Color color; }
-struct mu_TextCommand { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color; char[MU_STR_SIZE] str; }
+/// Command to render text at a given position with a font and color.
+struct mu_TextCommand { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color; char[1] str; }
+/// Command to draw an icon inside a rectangle with a given color.
 struct mu_IconCommand { mu_BaseCommand base; mu_Rect rect; int id; mu_Color color; }
 
+pragma(msg, mu_Command.sizeof);
+
+/// A union of all possible render commands.
+/// The `type` and `base` fields are always valid, as all commands begin with a `mu_CommandEnum` and `mu_BaseCommand`.
+/// Use `type` to determine the active command variant.
 union mu_Command {
     mu_CommandEnum type;
     mu_BaseCommand base;
@@ -271,13 +297,14 @@ union mu_Command {
     mu_IconCommand icon;
 }
 
+/// Layout state used to position UI elements within a container.
 struct mu_Layout {
     mu_Rect body;
     mu_Rect next;
     mu_Vec2 position;
     mu_Vec2 size;
     mu_Vec2 max;
-    mu_Array!(int, MU_MAX_WIDTHS) widths;
+    int[MU_MAX_WIDTHS] widths;
     int items;
     int item_index;
     int next_row;
@@ -285,6 +312,7 @@ struct mu_Layout {
     int indent;
 }
 
+/// A UI container holding commands.
 struct mu_Container {
     mu_Command* head;
     mu_Command* tail;
@@ -296,6 +324,7 @@ struct mu_Container {
     int open;
 }
 
+/// UI style settings including font, sizes, spacing, and colors.
 struct mu_Style {
     mu_Font font;
     mu_Vec2 size;
@@ -305,10 +334,11 @@ struct mu_Style {
     int title_height;
     int scrollbar_size;
     int thumb_size;
-    int control_border;
+    int control_border_size;
     mu_Array!(mu_Color, MU_COLOR_MAX) colors;
 }
 
+/// The main UI context.
 struct mu_Context {
     /* callbacks */
     mu_TextWidthFunc text_width;
@@ -361,7 +391,7 @@ private void draw_frame(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid) {
     if (colorid == MU_COLOR_SCROLLBASE || colorid == MU_COLOR_SCROLLTHUMB || colorid == MU_COLOR_TITLEBG) return;
     /* draw border */
     if (ctx.style.colors[MU_COLOR_BORDER].a) {
-        foreach (i; 1 .. ctx.style.control_border + 1) {
+        foreach (i; 1 .. ctx.style.control_border_size + 1) {
             mu_draw_box(ctx, mu_expand_rect(rect, i), ctx.style.colors[MU_COLOR_BORDER]);
         }
     }
@@ -589,7 +619,7 @@ void mu_init(mu_Context* ctx) {
     mu_default_style = mu_Style(
         /* font | size | padding | spacing | indent */
         null, mu_Vec2(68, 10), 5, 4, 24,
-        /* title_height | scrollbar_size | thumb_size | control_border */
+        /* title_height | scrollbar_size | thumb_size | control_border_size */
         24, 12, 8, 1,
         mu_Array!(mu_Color, 14)(
             mu_Color(230, 230, 230, 255), /* MU_COLOR_TEXT */
@@ -646,10 +676,10 @@ void mu_begin(mu_Context* ctx) {
 void mu_end(mu_Context *ctx) {
     int i, n;
     /* check stacks */
-    mu_expect(ctx.container_stack.idx == 0);
-    mu_expect(ctx.clip_stack.idx      == 0);
-    mu_expect(ctx.id_stack.idx        == 0);
-    mu_expect(ctx.layout_stack.idx    == 0);
+    mu_expect(ctx.container_stack.idx == 0, "Container stack is not empty.");
+    mu_expect(ctx.clip_stack.idx      == 0, "Clip stack is not empty.");
+    mu_expect(ctx.id_stack.idx        == 0, "ID stack is not empty.");
+    mu_expect(ctx.layout_stack.idx    == 0, "Layout stack is not empty.");
 
     /* handle scroll input */
     if (ctx.scroll_target) {
@@ -835,7 +865,7 @@ mu_Command* mu_push_command(mu_Context* ctx, mu_CommandEnum type, size_t size) {
     mu_Command* cmd = cast(mu_Command*) (ctx.command_list.items.ptr + ctx.command_list.idx);
     mu_expect(ctx.command_list.idx + size < MU_COMMANDLIST_SIZE);
     cmd.base.type = type;
-    cmd.base.size = cast(int) size; // NOTE(Kapendev): Maybe it's `int` because it's easier to guess the size in other languages. No idea.
+    cmd.base.size = cast(int) size; // No idea why this is an int and I don't care.
     ctx.command_list.idx += size;
     return cmd;
 }
@@ -884,9 +914,9 @@ void mu_draw_text(mu_Context* ctx, mu_Font font, const(char)[] str, mu_Vec2 pos,
     if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
     /* add command */
     // if (len < 0) { len = strlen(str); }
-    cmd = mu_push_command(ctx, MU_COMMAND_TEXT, cast(int) mu_TextCommand.sizeof + str.length); // NOTE(Kapendev): KINDA SUS LINE?
+    cmd = mu_push_command(ctx, MU_COMMAND_TEXT, cast(int) mu_TextCommand.sizeof + str.length); // NOTE(Kapendev): KINDA SUS? No. It's the string thing.
     memcpy(cmd.text.str.ptr, str.ptr, str.length);
-    cmd.text.str[str.length] = '\0'; // NOTE(Kapendev): Microui uses static strings. Adjust the size in `mu_TextCommand` if necessary.
+    cmd.text.str.ptr[str.length] = '\0'; // NOTE(Kapendev): See `MU_COMMANDLIST_SIZE`.
     cmd.text.pos = pos;
     cmd.text.color = color;
     cmd.text.font = font;

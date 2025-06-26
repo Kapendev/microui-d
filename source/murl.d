@@ -91,13 +91,15 @@ void murl_init_with_temp_funcs(mu_Context* ctx, mu_Font font = null) {
     ctx.style.size = mu_vec2(data.baseSize * 6, data.baseSize);
     ctx.style.title_height = data.baseSize + 11;
     if (data.baseSize <= 16) {
-        ctx.style.control_border = 1;
+        ctx.style.control_border_size = 1;
     } else if (data.baseSize <= 64) {
-        ctx.style.control_border = 2;
+        ctx.style.control_border_size = 2;
         ctx.style.spacing += 4;
+        ctx.style.padding += 4;
     } else {
-        ctx.style.control_border = 3;
+        ctx.style.control_border_size = 3;
         ctx.style.spacing += 6;
+        ctx.style.padding += 6;
     }
 }
 
