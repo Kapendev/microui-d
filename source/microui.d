@@ -276,7 +276,7 @@ struct mu_RectCommand { mu_BaseCommand base; mu_Rect rect; mu_Color color; }
 /// Command to render text at a given position with a font and color. The text is a null-terminated string. Use `str.ptr` to access it.
 struct mu_TextCommand { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color; char[1] str; }
 /// Command to draw an icon inside a rectangle with a given color.
-struct mu_IconCommand { mu_BaseCommand base; mu_Rect rect; int id; mu_Color color; }
+struct mu_IconCommand { mu_BaseCommand base; mu_Rect rect; mu_IconEnum id; mu_Color color; }
 
 /// A union of all possible render commands.
 /// The `type` and `base` fields are always valid, as all commands begin with a `mu_CommandEnum` and `mu_BaseCommand`.
@@ -923,7 +923,7 @@ void mu_draw_text(mu_Context* ctx, mu_Font font, const(char)[] str, mu_Vec2 pos,
     if (clipped) { mu_set_clip(ctx, mu_unclipped_rect); }
 }
 
-void mu_draw_icon(mu_Context* ctx, int id, mu_Rect rect, mu_Color color) {
+void mu_draw_icon(mu_Context* ctx, mu_IconEnum id, mu_Rect rect, mu_Color color) {
     mu_Command* cmd;
     /* do clip command if the rect isn't fully contained within the cliprect */
     mu_ClipEnum clipped = mu_check_clip(ctx, rect);

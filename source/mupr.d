@@ -6,11 +6,9 @@
 // Version: v0.0.1
 // ---
 
-// TODO: EVERYTHING! I just copy-pasted murl. Probably the last thing I will do for now and then make a version.
-// TODO: Add more doc comments.
 // TODO: Add maybe attributes.
 
-/// Equivalent to `import microui`, with additional Parin helper functions.
+/// Equivalent to `import microui`, with additional helper functions for Parin.
 module mupr;
 
 public import microui;
@@ -18,6 +16,7 @@ public import microui;
 private extern(C) nothrow @nogc {
     enum MOUSE_BUTTON_LEFT   = 0;
     enum MOUSE_BUTTON_RIGHT  = 1;
+    enum MOUSE_BUTTON_MIDDLE = 2;
     enum KEY_ENTER           = 257;
     enum KEY_TAB             = 258;
     enum KEY_BACKSPACE       = 259;
@@ -56,7 +55,9 @@ private extern(C) nothrow @nogc {
         GlyphInfo* glyphs;
     }
 
+    size_t strlen(const(char)* str);
     void* memcpy(void* dest, const(void)* src, size_t count);
+
     Vector2 MeasureTextEx(Font font, const(char)* text, float fontSize, float spacing);
     Font GetFontDefault();
     Vector2 GetMouseWheelMoveV();
@@ -73,23 +74,93 @@ private extern(C) nothrow @nogc {
     void EndScissorMode();
     void DrawTextEx(Font font, const(char)* text, Vector2 position, float fontSize, float spacing, Color tint);
     void DrawRectangleRec(Rectangle rec, Color color);
+
+    // Parin part...
+
+    alias IStr = const(char)[];
+    alias Sz = size_t;
+
+    struct GenIndex {
+        Sz value;
+        Sz generation;
+    }
+
+    alias Rect = Rectangle;
+    alias Vec2 = Vector2;
+    alias Rgba = Color;
+    alias Hook = ubyte;
+    alias Flip = ubyte;
+    alias Alignment = ubyte;
+
+    enum Mouse : ushort {
+        none = 0,
+        left = MOUSE_BUTTON_LEFT + 1,
+        right = MOUSE_BUTTON_RIGHT + 1,
+        middle = MOUSE_BUTTON_MIDDLE + 1,
+    }
+
+    struct DrawOptions {
+        Vec2 origin    = Vec2(0.0f, 0.0f);
+        Vec2 scale     = Vec2(1.0f, 1.0f);
+        float rotation = 0.0f;
+        Rgba color     = Rgba(255, 255, 255, 255);
+        Hook hook      = 0;
+        Flip flip      = 0;
+    }
+
+    struct TextOptions {
+        float visibilityRatio  = 1.0f;
+        int alignmentWidth     = 0;
+        ushort visibilityCount = 0;
+        Alignment alignment    = 0;
+        bool isRightToLeft     = false;
+    }
+
+    struct PFont {
+        Font data;
+        int runeSpacing;
+        int lineSpacing;
+    }
+
+    struct PFontId {
+        GenIndex data;
+    }
+
+
+    ref PFont getFont(PFontId id);
+    int windowWidth();
+    int windowHeight();
+    Vec2 mouse();
+    float deltaWheel();
+    bool isPressedMouse(Mouse key);
+    bool isReleasedMouse(Mouse key);
+    Vec2 measureTextSizeX(PFont font, IStr text, DrawOptions options = DrawOptions(), TextOptions extra = TextOptions());
+    Vec2 measureTextSize(PFontId font, IStr text, DrawOptions options = DrawOptions(), TextOptions extra = TextOptions());
+    void drawTextX(PFont font, IStr text, Vec2 position, DrawOptions options = DrawOptions(), TextOptions extra = TextOptions());
+    void drawText(PFontId font, IStr text, Vec2 position, DrawOptions options = DrawOptions(), TextOptions extra = TextOptions());
+    void drawRect(Rect area, Rgba color = Rgba(255, 255, 255, 255));
 }
 
+/// Temporary text measurement function for prototyping.
 int mupr_temp_text_width_func(mu_Font font, const(char)[] str) {
-    auto data = cast(Font*) font;
-    return cast(int) MeasureTextEx(*data, str.ptr, data.baseSize, 1).x;
+    auto da = cast(PFontId*) font;
+    return cast(int) measureTextSize(*da, str).x;
 }
 
+/// Temporary text measurement function for prototyping.
 int mupr_temp_text_height_func(mu_Font font) {
-    auto data = cast(Font*) font;
-    return cast(int) data.baseSize;
+    auto da = cast(PFontId*) font;
+    auto data = cast(Font*) &getFont(*da);
+    return data.baseSize;
 }
 
 extern(C):
 
+/// Initializes the microui context and sets temporary text size functions. Value `font` should be a `FontId*`.
 void mupr_init_with_temp_funcs(mu_Context* ctx, mu_Font font = null) {
     mu_init_with_funcs(ctx, &mupr_temp_text_width_func, &mupr_temp_text_height_func, font);
-    auto data = cast(Font*) font;
+    auto da = cast(PFontId*) font;
+    auto data = cast(Font*) &getFont(*da);
     ctx.style.size = mu_vec2(data.baseSize * 6, data.baseSize);
     ctx.style.title_height = data.baseSize + 11;
     if (data.baseSize <= 16) {
@@ -100,29 +171,18 @@ void mupr_init_with_temp_funcs(mu_Context* ctx, mu_Font font = null) {
         ctx.style.padding += 4;
     } else {
         ctx.style.control_border_size = 3;
-        ctx.style.spacing += 6;
-        ctx.style.padding += 6;
+        ctx.style.spacing += 8;
+        ctx.style.padding += 8;
     }
 }
 
+/// Handles input events and updates the microui context accordingly.
 void mupr_handle_input(mu_Context* ctx) {
     enum scroll_speed = -30;
 
-    auto scroll = Vector2();
-    version (WebAssembly) {
-        scroll = -GetMouseWheelMoveV();
-        scroll.x *= -1;
-        scroll.y *= -1;
-    } version (OSX) {
-        scroll = GetMouseWheelMoveV();
-        scroll.x *= -1;
-        scroll.y *= -1;
-    } else {
-        scroll = GetMouseWheelMoveV();
-    }
-    mu_input_scroll(ctx, cast(int) scroll.x * scroll_speed, cast(int) scroll.y * scroll_speed);
-    mu_input_mousedown(ctx, GetMouseX(), GetMouseY(), IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
-    mu_input_mouseup(ctx, GetMouseX(), GetMouseY(), IsMouseButtonReleased(MOUSE_BUTTON_LEFT) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
+    mu_input_scroll(ctx, 0, cast(int) deltaWheel * scroll_speed);
+    mu_input_mousedown(ctx, cast(int) mouse.x, cast(int) mouse.y, isPressedMouse(Mouse.left) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
+    mu_input_mouseup(ctx, cast(int) mouse.x, cast(int) mouse.y, isReleasedMouse(Mouse.left) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
 
     mu_input_keydown(ctx, IsKeyPressed(KEY_LEFT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
     mu_input_keydown(ctx, IsKeyPressed(KEY_RIGHT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
@@ -152,27 +212,28 @@ void mupr_handle_input(mu_Context* ctx) {
     mu_input_text(ctx, charBuffer[]);
 }
 
+/// Draws the microui context to the screen.
 void mupr_draw(mu_Context* ctx) {
-    auto style_font = cast(Font*) ctx.style.font;
-    BeginScissorMode(0, 0, GetScreenWidth(), GetScreenHeight());
+    auto style_font = cast(PFontId*) ctx.style.font;
+    BeginScissorMode(0, 0, windowWidth, windowHeight);
     mu_Command *cmd;
     while (mu_next_command(ctx, &cmd)) {
         switch (cmd.type) {
             case MU_COMMAND_TEXT:
-                auto text_font = cast(Font*) cmd.text.font;
-                DrawTextEx(
+                auto text_font = cast(PFontId*) cmd.text.font;
+                auto text_options = DrawOptions();
+                text_options.color = *(cast(Rgba*) (&cmd.text.color));
+                drawText(
                     *text_font,
-                    cmd.text.str.ptr,
-                    Vector2(cmd.text.pos.x, cmd.text.pos.y),
-                    text_font.baseSize,
-                    1,
-                    *(cast(Color*) (&cmd.text.color)),
+                    cmd.text.str.ptr[0 .. strlen(cmd.text.str.ptr)],
+                    Vec2(cmd.text.pos.x, cmd.text.pos.y),
+                    text_options,
                 );
                 break;
             case MU_COMMAND_RECT:
-                DrawRectangleRec(
-                    Rectangle(cmd.rect.rect.x, cmd.rect.rect.y, cmd.rect.rect.w, cmd.rect.rect.h),
-                    *(cast(Color*) (&cmd.rect.color)),
+                drawRect(
+                    Rect(cmd.rect.rect.x, cmd.rect.rect.y, cmd.rect.rect.w, cmd.rect.rect.h),
+                    *(cast(Rgba*) (&cmd.rect.color)),
                 );
                 break;
             case MU_COMMAND_ICON:
@@ -188,21 +249,21 @@ void mupr_draw(mu_Context* ctx) {
                 auto ic_height = ctx.text_height(style_font);
                 auto ic_rect = cmd.icon.rect;
                 auto ic_diff = mu_vec2(ic_rect.w - ic_width, ic_rect.h - ic_height);
+                auto ic_options = DrawOptions();
+                ic_options.color = *(cast(Rgba*) (&cmd.icon.color));
+
                 if (ic_diff.x < 0) ic_diff.x *= -1;
                 if (ic_diff.y < 0) ic_diff.y *= -1;
-                DrawTextEx(
+                drawText(
                     *style_font,
-                    icon.ptr,
-                    Vector2(ic_rect.x + ic_diff.x / 2, ic_rect.y + ic_diff.y / 2),
-                    style_font.baseSize,
-                    1,
-                    *(cast(Color*) &cmd.icon.color),
+                    icon,
+                    Vec2(ic_rect.x + ic_diff.x / 2, ic_rect.y + ic_diff.y / 2),
+                    ic_options,
                 );
                 break;
             case MU_COMMAND_CLIP:
                 EndScissorMode();
-                BeginScissorMode(cmd.clip.rect.x, cmd.clip.rect.y, cmd.clip.rect.w,
-                cmd.clip.rect.h);
+                BeginScissorMode(cmd.clip.rect.x, cmd.clip.rect.y, cmd.clip.rect.w, cmd.clip.rect.h);
                 break;
             default:
                 break;

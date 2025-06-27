@@ -6,10 +6,9 @@
 // Version: v0.0.1
 // ---
 
-// TODO: Add more doc comments.
 // TODO: Add maybe attributes.
 
-/// Equivalent to `import microui`, with additional raylib helper functions.
+/// Equivalent to `import microui`, with additional helper functions for raylib.
 module murl;
 
 public import microui;
@@ -17,6 +16,7 @@ public import microui;
 private extern(C) nothrow @nogc {
     enum MOUSE_BUTTON_LEFT   = 0;
     enum MOUSE_BUTTON_RIGHT  = 1;
+    enum MOUSE_BUTTON_MIDDLE = 2;
     enum KEY_ENTER           = 257;
     enum KEY_TAB             = 258;
     enum KEY_BACKSPACE       = 259;
@@ -74,18 +74,21 @@ private extern(C) nothrow @nogc {
     void DrawRectangleRec(Rectangle rec, Color color);
 }
 
+/// Temporary text measurement function for prototyping.
 int murl_temp_text_width_func(mu_Font font, const(char)[] str) {
     auto data = cast(Font*) font;
     return cast(int) MeasureTextEx(*data, str.ptr, data.baseSize, 1).x;
 }
 
+/// Temporary text measurement function for prototyping.
 int murl_temp_text_height_func(mu_Font font) {
     auto data = cast(Font*) font;
-    return cast(int) data.baseSize;
+    return data.baseSize;
 }
 
 extern(C):
 
+/// Initializes the microui context and sets temporary text size functions. Value `font` should be a `Font*`.
 void murl_init_with_temp_funcs(mu_Context* ctx, mu_Font font = null) {
     mu_init_with_funcs(ctx, &murl_temp_text_width_func, &murl_temp_text_height_func, font);
     auto data = cast(Font*) font;
@@ -99,11 +102,12 @@ void murl_init_with_temp_funcs(mu_Context* ctx, mu_Font font = null) {
         ctx.style.padding += 4;
     } else {
         ctx.style.control_border_size = 3;
-        ctx.style.spacing += 6;
-        ctx.style.padding += 6;
+        ctx.style.spacing += 8;
+        ctx.style.padding += 8;
     }
 }
 
+/// Handles input events and updates the microui context accordingly.
 void murl_handle_input(mu_Context* ctx) {
     enum scroll_speed = -30;
 
@@ -151,6 +155,7 @@ void murl_handle_input(mu_Context* ctx) {
     mu_input_text(ctx, charBuffer[]);
 }
 
+/// Draws the microui context to the screen.
 void murl_draw(mu_Context* ctx) {
     auto style_font = cast(Font*) ctx.style.font;
     BeginScissorMode(0, 0, GetScreenWidth(), GetScreenHeight());
@@ -200,8 +205,7 @@ void murl_draw(mu_Context* ctx) {
                 break;
             case MU_COMMAND_CLIP:
                 EndScissorMode();
-                BeginScissorMode(cmd.clip.rect.x, cmd.clip.rect.y, cmd.clip.rect.w,
-                cmd.clip.rect.h);
+                BeginScissorMode(cmd.clip.rect.x, cmd.clip.rect.y, cmd.clip.rect.w, cmd.clip.rect.h);
                 break;
             default:
                 break;

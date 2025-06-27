@@ -1,5 +1,5 @@
-import murl;   // Equivalent to `import microui`, with additional raylib helper functions.
-import raylib; // Import the raylib bindings.
+import murl;   // Equivalent to `import microui`, with additional helper functions for raylib.
+import raylib; // This example assumes you are using https://github.com/schveiguy/raylib-d.
 
 void main() {
     char[512] buffer = '\0';
