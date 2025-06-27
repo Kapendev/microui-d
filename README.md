@@ -9,7 +9,7 @@ Microui-D is a complete rewrite of [rxi's microui](https://github.com/rxi/microu
 * Works within a fixed memory region
 * Works with any rendering system that can draw rectangles and text
 * Easily extensible with custom controls
-* Optional helper modules for popular frameworks ([raylib](source/murl.d), [parin](source/mupr.d))
+* Optional helper modules for popular libraries ([raylib](source/murl.d), [parin](source/mupr.d))
 * C interface for cross-language use
 * WebAssembly support with BetterC
 
@@ -99,7 +99,7 @@ It is safe to call the input functions multiple times if the same input event oc
 After handling the input the `mu_begin()` function must be called before processing your UI:
 
 ```d
-    mu_begin(ctx);
+mu_begin(ctx);
 ```
 
 Before any controls can be used we must begin a window using one of the `mu_begin_window...` or `mu_begin_popup...` functions.

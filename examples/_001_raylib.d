@@ -1,5 +1,5 @@
 import murl;   // Equivalent to `import microui`, with additional helper functions for raylib.
-import raylib; // This example assumes you are using https://github.com/schveiguy/raylib-d.
+import parin.rl; // This example assumes you are using https://github.com/schveiguy/raylib-d.
 
 void main() {
     char[512] buffer = '\0';
@@ -17,7 +17,7 @@ void main() {
         mu_begin(ctx);
         if (mu_begin_window(ctx, "The Window", mu_rect(40, 40, 300, 200))) {
             mu_button(ctx, "My Button");
-            mu_slider(ctx, &number, 0, 100, 1, "Number: %g");
+            mu_slider(ctx, &number, 0, 100);
             mu_textbox(ctx, buffer.ptr, buffer.length);
             mu_end_window(ctx);
         }

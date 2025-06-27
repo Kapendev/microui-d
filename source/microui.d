@@ -55,15 +55,15 @@ alias mu_Real = float; /// The floating-point type of microui.
 alias mu_Id   = uint;  /// The control ID type of microui.
 alias mu_Font = void*; /// The font type of microui.
 
-alias mu_ClipEnum    = short;  /// The type of `MU_CLIP_*` enums.
-alias mu_CommandEnum = short;  /// The type of `MU_COMMAND_*` enums.
-alias mu_ColorEnum   = short;  /// The type of `MU_COLOR_*` enums.
-alias mu_IconEnum    = short;  /// The type of `MU_ICON_*` enums.
+alias mu_ClipEnum    = int;  /// The type of `MU_CLIP_*` enums.
+alias mu_CommandEnum = int;  /// The type of `MU_COMMAND_*` enums.
+alias mu_ColorEnum   = int;  /// The type of `MU_COLOR_*` enums.
+alias mu_IconEnum    = int;  /// The type of `MU_ICON_*` enums.
 
-alias mu_ResFlags   = short;  /// The type of `MU_RES_*` enums.
-alias mu_OptFlags   = short;  /// The type of `MU_OPT_*` enums.
-alias mu_MouseFlags = short;  /// The type of `MU_MOUSE_*` enums.
-alias mu_KeyFlags   = short;  /// The type of `MU_KEY_*` enums.
+alias mu_ResFlags   = int;  /// The type of `MU_RES_*` enums.
+alias mu_OptFlags   = int;  /// The type of `MU_OPT_*` enums.
+alias mu_MouseFlags = int;  /// The type of `MU_MOUSE_*` enums.
+alias mu_KeyFlags   = int;  /// The type of `MU_KEY_*` enums.
 
 private enum HASH_INITIAL = 2166136261; // A 32bit fnv-1a hash.
 private enum RELATIVE     = 1;          // The relative layout type.
@@ -377,10 +377,6 @@ struct mu_Context {
     char[MU_INPUTTEXT_SIZE] input_text;
 }
 
-private T mu_min(T)(T a, T b)        => ((a) < (b) ? (a) : (b));
-private T mu_max(T)(T a, T b)        => ((a) > (b) ? (a) : (b));
-private T mu_clamp(T)(T x, T a, T b) => mu_min(b, mu_max(a, x));
-
 private void draw_frame(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid) {
     mu_draw_rect(ctx, rect, ctx.style.colors[colorid]);
     if (colorid == MU_COLOR_SCROLLBASE || colorid == MU_COLOR_SCROLLTHUMB || colorid == MU_COLOR_TITLEBG) return;
@@ -393,7 +389,7 @@ private void draw_frame(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid) {
 }
 
 private int compare_zindex(const(void)* a, const(void)* b) {
-    return (*cast(mu_Container**) a).zindex - (*cast(mu_Container**) b).zindex;
+    return (*cast(mu_Container**) b).zindex - (*cast(mu_Container**) a).zindex;
 }
 
 private void hash(mu_Id* hash, const(void)* data, size_t size) {
@@ -405,12 +401,11 @@ private void hash(mu_Id* hash, const(void)* data, size_t size) {
 
 private void push_layout(mu_Context* ctx, mu_Rect body, mu_Vec2 scroll) {
     mu_Layout layout;
-    int width = 0;
     memset(&layout, 0, layout.sizeof);
     layout.body = mu_rect(body.x - scroll.x, body.y - scroll.y, body.w, body.h);
     layout.max = mu_vec2(-0x1000000, -0x1000000);
     ctx.layout_stack.push(layout);
-    mu_layout_row(ctx, 1, &width, 0);
+    mu_layout_row(ctx, 0, 0);
 }
 
 private mu_Layout* get_layout(mu_Context* ctx) {
@@ -488,8 +483,7 @@ private mu_ResFlags header(mu_Context* ctx, const(char)[] label, int istreenode,
     int active, expanded;
     mu_Id id = mu_get_id(ctx, label.ptr, label.length);
     int idx = mu_pool_get(ctx, ctx.treenode_pool.ptr, MU_TREENODEPOOL_SIZE, id);
-    int width = -1;
-    mu_layout_row(ctx, 1, &width, 0);
+    mu_layout_row(ctx, 0, -1);
 
     active = (idx >= 0);
     expanded = (opt & MU_OPT_EXPANDED) ? !active : active;
@@ -570,6 +564,10 @@ private void end_root_container(mu_Context* ctx) {
 
 @safe nothrow @nogc pure
 private void mu_expect(bool x, const(char)[] message = "Fatal microui error.") => assert(x, message);
+
+T mu_min(T)(T a, T b)        => ((a) < (b) ? (a) : (b));
+T mu_max(T)(T a, T b)        => ((a) > (b) ? (a) : (b));
+T mu_clamp(T)(T x, T a, T b) => mu_min(b, mu_max(a, x));
 
 /// Temporary text measurement function for prototyping.
 int mu_temp_text_width_func(mu_Font font, const(char)[] str) => 200;
@@ -958,8 +956,20 @@ void mu_layout_end_column(mu_Context* ctx) {
     a.max.y = mu_max(a.max.y, b.max.y);
 }
 
-// NOTE(Kapendev): `items` is the length of `widths`. Negative values and `items` without `widths` are allowed.
-void mu_layout_row(mu_Context* ctx, int items, const(int)* widths, int height) {
+@trusted // NOTE(Kapendev): Sokol-d likes the `-preview=safer` flag.
+void mu_layout_row(mu_Context* ctx, int height, const(int)[] widths...) {
+    mu_Layout* layout = get_layout(ctx);
+    if (widths.length > 0 && widths.ptr) {
+        mu_expect(widths.length <= MU_MAX_WIDTHS);
+        memcpy(layout.widths.ptr, widths.ptr, widths[0].sizeof * widths.length);
+    }
+    layout.items = cast(int) widths.length;
+    layout.position = mu_vec2(layout.indent, layout.next_row);
+    layout.size.y = height;
+    layout.item_index = 0;
+}
+
+void mu_layout_row_legacy(mu_Context* ctx, int items, const(int)* widths, int height) {
     mu_Layout* layout = get_layout(ctx);
     if (items > 0 && widths) {
         mu_expect(items <= MU_MAX_WIDTHS);
@@ -969,10 +979,6 @@ void mu_layout_row(mu_Context* ctx, int items, const(int)* widths, int height) {
     layout.position = mu_vec2(layout.indent, layout.next_row);
     layout.size.y = height;
     layout.item_index = 0;
-}
-
-void mu_layout_row_single(mu_Context* ctx, int width, int height) {
-    mu_layout_row(ctx, 1, &width, height);
 }
 
 void mu_layout_width(mu_Context* ctx, int width) {
@@ -1002,7 +1008,7 @@ mu_Rect mu_layout_next(mu_Context* ctx) {
         if (type == ABSOLUTE) { return (ctx.last_rect = res); }
     } else {
         /* handle next row */
-        if (layout.item_index == layout.items) { mu_layout_row(ctx, layout.items, null, layout.size.y); }
+        if (layout.item_index == layout.items) { mu_layout_row_legacy(ctx, layout.items, null, layout.size.y); }
         /* position */
         res.x = layout.position.x;
         res.y = layout.position.y;
@@ -1083,8 +1089,7 @@ void mu_text(mu_Context* ctx, const(char)[] text, int offset = 0) {
     mu_Font font = ctx.style.font;
     mu_Color color = ctx.style.colors[MU_COLOR_TEXT];
     mu_layout_begin_column(ctx);
-    int temp_mu_layout_row_value = -1;
-    mu_layout_row(ctx, 1, &temp_mu_layout_row_value, ctx.text_height(font));
+    mu_layout_row(ctx, ctx.text_height(font), -1);
 
     if (text.length != 0) {
         const(char)* p = text.ptr;
@@ -1278,8 +1283,8 @@ mu_ResFlags mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real h
     return res;
 }
 
-mu_ResFlags mu_slider(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)[] fmt) {
-    return mu_slider_ex(ctx, value, low, high, step, fmt, 0);
+mu_ResFlags mu_slider(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high) {
+    return mu_slider_ex(ctx, value, low, high, 0.01f, MU_SLIDER_FMT, 0);
 }
 
 mu_ResFlags mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {
