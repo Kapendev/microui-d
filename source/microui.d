@@ -28,14 +28,15 @@
 ** IN THE SOFTWARE.
 */
 
-// TODO: Add doc comments.
-// TODO: Add maybe support for parin.
+// TODO: Add more doc comments.
 // TODO: Add maybe attributes.
+// TODO: Add maybe support for parin.
 
+/// A tiny immediate-mode UI library.
 module microui;
 
-private extern(C) {
-    /* External dependencies required by microui. */
+private extern(C) nothrow @nogc {
+    // External dependencies required by microui.
     alias STDLIB_QSORT_FUNC = int function(const(void)* a, const(void)* b);
     int sprintf(char* buffer, const(char)* format, ...);
     double strtod(const(char)* str, char** str_end);
@@ -45,33 +46,30 @@ private extern(C) {
     size_t strlen(const(char)* str);
 }
 
-private extern(C) __gshared mu_Rect mu_unclipped_rect = { 0, 0, 0x1000000, 0x1000000 };
-private extern(C) __gshared mu_Style mu_default_style;
-
 static assert(mu_Command.sizeof <= MU_STR_SIZE, "Type `mu_Command` must fit within `MU_STR_SIZE` bytes (used for embedded strings).");
 
-alias mu_Real = float;
-alias mu_Id = uint;
-alias mu_Font = void*;
+alias mu_TextWidthFunc = int function(mu_Font font, const(char)[] str); /// Used for getting the width of the text.
+alias mu_TextHeightFunc = int function(mu_Font font);                   /// Used for getting the height of the text.
 
-alias mu_Enum = short;
-alias mu_ClipEnum = mu_Enum;
-alias mu_CommandEnum = mu_Enum;
-alias mu_ColorEnum = mu_Enum;
-alias mu_IconEnum = mu_Enum;
+alias mu_Real = float; /// The floating-point type of microui.
+alias mu_Id   = uint;  /// The control ID type of microui.
+alias mu_Font = void*; /// The font type of microui.
 
-alias mu_Flags = short;
-alias mu_ResFlags = mu_Flags;
-alias mu_OptFlags = mu_Flags;
-alias mu_MouseFlags = mu_Flags;
-alias mu_KeyFlags = mu_Flags;
+alias mu_ClipEnum    = short;  /// The type of `MU_CLIP_*` enums.
+alias mu_CommandEnum = short;  /// The type of `MU_COMMAND_*` enums.
+alias mu_ColorEnum   = short;  /// The type of `MU_COLOR_*` enums.
+alias mu_IconEnum    = short;  /// The type of `MU_ICON_*` enums.
 
-alias mu_TextWidthFunc = int function(mu_Font font, const(char)[] str);
-alias mu_TextHeightFunc = int function(mu_Font font);
+alias mu_ResFlags   = short;  /// The type of `MU_RES_*` enums.
+alias mu_OptFlags   = short;  /// The type of `MU_OPT_*` enums.
+alias mu_MouseFlags = short;  /// The type of `MU_MOUSE_*` enums.
+alias mu_KeyFlags   = short;  /// The type of `MU_KEY_*` enums.
 
-private enum HASH_INITIAL = 2166136261; /* A 32bit fnv-1a hash. UwU  */
-private enum RELATIVE = 1;              /* The relative layout type. */
-private enum ABSOLUTE = 2;              /* The absolute layout type. */
+private enum HASH_INITIAL = 2166136261; // A 32bit fnv-1a hash.
+private enum RELATIVE     = 1;          // The relative layout type.
+private enum ABSOLUTE     = 2;          // The absolute layout type.
+
+private enum mu_unclipped_rect = mu_Rect(0, 0, 0x1000000, 0x1000000);
 
 enum MU_D_VERSION           = "v0.0.1";          /// Version of the D language rewrite.
 enum MU_VERSION             = "2.02";            /// Version of the original microui C library.
@@ -173,10 +171,8 @@ enum : mu_KeyFlags {
     MU_KEY_RETURN    = (1 << 4), /// Return key pressed.
 }
 
-/// A fixed-capacity array allocated on the program stack.
-// It exists mainly because of WASM support.
-// LDC and BetterC don't like static arrays of structs because of type info stuff.
-// You can make a WASM build without BetterC, but this solution avoids compiler flags.
+/// A static array allocated on the stack.
+// It exists mainly because of weird BetterC stuff.
 struct mu_Array(T, size_t N) {
     align(T.alignof) ubyte[T.sizeof * N] data;
 
@@ -238,7 +234,7 @@ struct mu_Array(T, size_t N) {
     }
 }
 
-/// A fixed-capacity stack allocated on the program stack.
+/// A static stack allocated on the stack.
 struct mu_Stack(T, size_t N) {
     int idx;
     mu_Array!(T, N) data = void;
@@ -277,12 +273,10 @@ struct mu_JumpCommand { mu_BaseCommand base; void* dst; }
 struct mu_ClipCommand { mu_BaseCommand base; mu_Rect rect; }
 /// Command to draw a rectangle with a given color.
 struct mu_RectCommand { mu_BaseCommand base; mu_Rect rect; mu_Color color; }
-/// Command to render text at a given position with a font and color.
+/// Command to render text at a given position with a font and color. The text is a null-terminated string. Use `str.ptr` to access it.
 struct mu_TextCommand { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color; char[1] str; }
 /// Command to draw an icon inside a rectangle with a given color.
 struct mu_IconCommand { mu_BaseCommand base; mu_Rect rect; int id; mu_Color color; }
-
-pragma(msg, mu_Command.sizeof);
 
 /// A union of all possible render commands.
 /// The `type` and `base` fields are always valid, as all commands begin with a `mu_CommandEnum` and `mu_BaseCommand`.
@@ -326,27 +320,27 @@ struct mu_Container {
 
 /// UI style settings including font, sizes, spacing, and colors.
 struct mu_Style {
-    mu_Font font;
-    mu_Vec2 size;
-    int padding;
-    int spacing;
-    int indent;
-    int title_height;
-    int scrollbar_size;
-    int thumb_size;
-    int control_border_size;
-    mu_Array!(mu_Color, MU_COLOR_MAX) colors;
+    mu_Font font;                             /// The font used for UI controls.
+    mu_Vec2 size;                             /// The size of UI controls.
+    int padding;                              /// The padding around UI controls.
+    int spacing;                              /// The spacing between UI controls.
+    int indent;                               /// The indent of UI controls.
+    int title_height;                         /// The height of the window title bar.
+    int scrollbar_size;                       /// The size of the scrollbar.
+    int thumb_size;                           /// The size of the thumb.
+    int control_border_size;                  /// The size of the border.
+    mu_Array!(mu_Color, MU_COLOR_MAX) colors; /// The array of colors used in the UI.
 }
 
 /// The main UI context.
 struct mu_Context {
     /* callbacks */
-    mu_TextWidthFunc text_width;
-    mu_TextHeightFunc text_height;
+    mu_TextWidthFunc text_width;   /// The function used for getting the width of the text.
+    mu_TextHeightFunc text_height; /// the function used for getting the height of the text.
     void function(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid) draw_frame;
     /* core state */
     mu_Style _style;
-    mu_Style* style;
+    mu_Style* style; /// The UI style settings.
     mu_Id hover;
     mu_Id focus;
     mu_Id last_id;
@@ -359,6 +353,7 @@ struct mu_Context {
     mu_Container* scroll_target;
     char[MU_MAX_FMT] number_edit_buf;
     mu_Id number_edit;
+    bool is_expecting_end; // Used for missing `mu_end` call.
     /* stacks */
     mu_Stack!(char, MU_COMMANDLIST_SIZE) command_list;
     mu_Stack!(mu_Container*, MU_ROOTLIST_SIZE) root_list;
@@ -615,8 +610,9 @@ bool mu_rect_overlaps_vec2(mu_Rect r, mu_Vec2 p) {
 }
 
 void mu_init(mu_Context* ctx) {
-    // NOTE(Kapendev): This is here because `mu_Array` can't be used at compile time.
-    mu_default_style = mu_Style(
+    memset(ctx, 0, (*ctx).sizeof);
+    ctx.draw_frame = &draw_frame;
+    ctx._style = mu_Style(
         /* font | size | padding | spacing | indent */
         null, mu_Vec2(68, 10), 5, 4, 24,
         /* title_height | scrollbar_size | thumb_size | control_border_size */
@@ -638,9 +634,6 @@ void mu_init(mu_Context* ctx) {
             mu_Color(30,  30,  30,  255), /* MU_COLOR_SCROLLTHUMB */
         ),
     );
-    memset(ctx, 0, (*ctx).sizeof);
-    ctx.draw_frame = &draw_frame;
-    ctx._style = mu_default_style;
     ctx.style = &ctx._style;
 }
 
@@ -663,6 +656,10 @@ void mu_begin(mu_Context* ctx) {
         ctx.text_width && ctx.text_height,
         "Missing text measurement functions (ctx.text_width, ctx.text_height).",
     );
+    mu_expect(
+        !ctx.is_expecting_end,
+        "Missing call to `mu_end` after `mu_begin` function.",
+    );
     ctx.command_list.idx = 0;
     ctx.root_list.idx = 0;
     ctx.scroll_target = null;
@@ -671,6 +668,7 @@ void mu_begin(mu_Context* ctx) {
     ctx.mouse_delta.x = ctx.mouse_pos.x - ctx.last_mouse_pos.x;
     ctx.mouse_delta.y = ctx.mouse_pos.y - ctx.last_mouse_pos.y;
     ctx.frame += 1;
+    ctx.is_expecting_end = true;
 }
 
 void mu_end(mu_Context *ctx) {
@@ -680,6 +678,7 @@ void mu_end(mu_Context *ctx) {
     mu_expect(ctx.clip_stack.idx      == 0, "Clip stack is not empty.");
     mu_expect(ctx.id_stack.idx        == 0, "ID stack is not empty.");
     mu_expect(ctx.layout_stack.idx    == 0, "Layout stack is not empty.");
+    ctx.is_expecting_end = false;
 
     /* handle scroll input */
     if (ctx.scroll_target) {
@@ -914,9 +913,9 @@ void mu_draw_text(mu_Context* ctx, mu_Font font, const(char)[] str, mu_Vec2 pos,
     if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
     /* add command */
     // if (len < 0) { len = strlen(str); }
-    cmd = mu_push_command(ctx, MU_COMMAND_TEXT, cast(int) mu_TextCommand.sizeof + str.length); // NOTE(Kapendev): KINDA SUS? No. It's the string thing.
-    memcpy(cmd.text.str.ptr, str.ptr, str.length);
-    cmd.text.str.ptr[str.length] = '\0'; // NOTE(Kapendev): See `MU_COMMANDLIST_SIZE`.
+    cmd = mu_push_command(ctx, MU_COMMAND_TEXT, cast(int) mu_TextCommand.sizeof + str.length);
+    memcpy(cmd.text.str.ptr, str.ptr, str.length); // NOTE(Kapendev): Maybe there should be a check here, but maybe not.
+    cmd.text.str.ptr[str.length] = '\0';           // NOTE(Kapendev): See `MU_COMMANDLIST_SIZE`.
     cmd.text.pos = pos;
     cmd.text.color = color;
     cmd.text.font = font;

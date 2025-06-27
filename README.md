@@ -9,8 +9,9 @@ Microui-D is a complete rewrite of [rxi's microui](https://github.com/rxi/microu
 * Works within a fixed memory region
 * Works with any rendering system that can draw rectangles and text
 * Easily extensible with custom controls
-* WebAssembly support with BetterC
+* Optional helper modules for popular frameworks ([raylib](source/murl.d), [parin](source/mupr.d))
 * C interface for cross-language use
+* WebAssembly support with BetterC
 
 ## Hello World Example Using Raylib
 

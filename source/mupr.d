@@ -6,11 +6,12 @@
 // Version: v0.0.1
 // ---
 
+// TODO: EVERYTHING! I just copy-pasted murl. Probably the last thing I will do for now and then make a version.
 // TODO: Add more doc comments.
 // TODO: Add maybe attributes.
 
-/// Equivalent to `import microui`, with additional raylib helper functions.
-module murl;
+/// Equivalent to `import microui`, with additional Parin helper functions.
+module mupr;
 
 public import microui;
 
@@ -74,20 +75,20 @@ private extern(C) nothrow @nogc {
     void DrawRectangleRec(Rectangle rec, Color color);
 }
 
-int murl_temp_text_width_func(mu_Font font, const(char)[] str) {
+int mupr_temp_text_width_func(mu_Font font, const(char)[] str) {
     auto data = cast(Font*) font;
     return cast(int) MeasureTextEx(*data, str.ptr, data.baseSize, 1).x;
 }
 
-int murl_temp_text_height_func(mu_Font font) {
+int mupr_temp_text_height_func(mu_Font font) {
     auto data = cast(Font*) font;
     return cast(int) data.baseSize;
 }
 
 extern(C):
 
-void murl_init_with_temp_funcs(mu_Context* ctx, mu_Font font = null) {
-    mu_init_with_funcs(ctx, &murl_temp_text_width_func, &murl_temp_text_height_func, font);
+void mupr_init_with_temp_funcs(mu_Context* ctx, mu_Font font = null) {
+    mu_init_with_funcs(ctx, &mupr_temp_text_width_func, &mupr_temp_text_height_func, font);
     auto data = cast(Font*) font;
     ctx.style.size = mu_vec2(data.baseSize * 6, data.baseSize);
     ctx.style.title_height = data.baseSize + 11;
@@ -104,7 +105,7 @@ void murl_init_with_temp_funcs(mu_Context* ctx, mu_Font font = null) {
     }
 }
 
-void murl_handle_input(mu_Context* ctx) {
+void mupr_handle_input(mu_Context* ctx) {
     enum scroll_speed = -30;
 
     auto scroll = Vector2();
@@ -151,7 +152,7 @@ void murl_handle_input(mu_Context* ctx) {
     mu_input_text(ctx, charBuffer[]);
 }
 
-void murl_draw(mu_Context* ctx) {
+void mupr_draw(mu_Context* ctx) {
     auto style_font = cast(Font*) ctx.style.font;
     BeginScissorMode(0, 0, GetScreenWidth(), GetScreenHeight());
     mu_Command *cmd;
