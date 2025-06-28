@@ -89,7 +89,7 @@ int murl_temp_text_height_func(mu_Font font) {
 extern(C):
 
 /// Initializes the microui context and sets temporary text size functions. Value `font` should be a `Font*`.
-void murl_init_with_temp_funcs(mu_Context* ctx, mu_Font font = null) {
+void murl_init(mu_Context* ctx, mu_Font font = null) {
     mu_init_with_funcs(ctx, &murl_temp_text_width_func, &murl_temp_text_height_func, font);
     auto data = cast(Font*) font;
     ctx.style.size = mu_vec2(data.baseSize * 6, data.baseSize);
@@ -105,6 +105,13 @@ void murl_init_with_temp_funcs(mu_Context* ctx, mu_Font font = null) {
         ctx.style.spacing += 8;
         ctx.style.padding += 8;
     }
+}
+
+/// Initializes the microui context and sets custom text size functions. Value `font` should be a `Font*`.
+void murl_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeightFunc height, mu_Font font = null) {
+    murl_init(ctx, font);
+    ctx.text_width = width;
+    ctx.text_height = height;
 }
 
 /// Handles input events and updates the microui context accordingly.

@@ -30,7 +30,6 @@
 
 // TODO: Add more doc comments.
 // TODO: Add maybe attributes.
-// TODO: Add maybe support for parin.
 
 /// A tiny immediate-mode UI library.
 module microui;
@@ -65,7 +64,6 @@ alias mu_OptFlags   = int;  /// The type of `MU_OPT_*` enums.
 alias mu_MouseFlags = int;  /// The type of `MU_MOUSE_*` enums.
 alias mu_KeyFlags   = int;  /// The type of `MU_KEY_*` enums.
 
-private enum HASH_INITIAL = 2166136261; // A 32bit fnv-1a hash.
 private enum RELATIVE     = 1;          // The relative layout type.
 private enum ABSOLUTE     = 2;          // The absolute layout type.
 
@@ -354,6 +352,7 @@ struct mu_Context {
     char[MU_MAX_FMT] number_edit_buf;
     mu_Id number_edit;
     bool is_expecting_end; // Used for missing `mu_end` call.
+    int button_counter;    // Used to avoid id problems.
     /* stacks */
     mu_Stack!(char, MU_COMMANDLIST_SIZE) command_list;
     mu_Stack!(mu_Container*, MU_ROOTLIST_SIZE) root_list;
@@ -565,15 +564,15 @@ private void end_root_container(mu_Context* ctx) {
 @safe nothrow @nogc pure
 private void mu_expect(bool x, const(char)[] message = "Fatal microui error.") => assert(x, message);
 
+// Temporary text measurement function for prototyping.
+private int mu_temp_text_width_func(mu_Font font, const(char)[] str) => 200;
+
+//  Temporary text measurement function for prototyping.
+private int mu_temp_text_height_func(mu_Font font) => 20;
+
 T mu_min(T)(T a, T b)        => ((a) < (b) ? (a) : (b));
 T mu_max(T)(T a, T b)        => ((a) > (b) ? (a) : (b));
 T mu_clamp(T)(T x, T a, T b) => mu_min(b, mu_max(a, x));
-
-/// Temporary text measurement function for prototyping.
-int mu_temp_text_width_func(mu_Font font, const(char)[] str) => 200;
-
-/// Temporary text measurement function for prototyping.
-int mu_temp_text_height_func(mu_Font font) => 20;
 
 extern(C):
 
@@ -607,9 +606,11 @@ bool mu_rect_overlaps_vec2(mu_Rect r, mu_Vec2 p) {
     return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
 }
 
-void mu_init(mu_Context* ctx) {
+void mu_init(mu_Context* ctx, mu_Font font = null) {
     memset(ctx, 0, (*ctx).sizeof);
     ctx.draw_frame = &draw_frame;
+    ctx.text_width = &mu_temp_text_width_func;
+    ctx.text_height = &mu_temp_text_height_func;
     ctx._style = mu_Style(
         /* font | size | padding | spacing | indent */
         null, mu_Vec2(68, 10), 5, 4, 24,
@@ -633,31 +634,19 @@ void mu_init(mu_Context* ctx) {
         ),
     );
     ctx.style = &ctx._style;
+    ctx.style.font = font;
 }
 
 void mu_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeightFunc height, mu_Font font = null) {
-    mu_init(ctx);
+    mu_init(ctx, font);
     ctx.text_width = width;
     ctx.text_height = height;
-    ctx.style.font = font;
-}
-
-void mu_init_with_temp_funcs(mu_Context* ctx, mu_Font font = null) {
-    mu_init(ctx);
-    ctx.text_width = &mu_temp_text_width_func;
-    ctx.text_height = &mu_temp_text_height_func;
-    ctx.style.font = font;
 }
 
 void mu_begin(mu_Context* ctx) {
-    mu_expect(
-        ctx.text_width && ctx.text_height,
-        "Missing text measurement functions (ctx.text_width, ctx.text_height).",
-    );
-    mu_expect(
-        !ctx.is_expecting_end,
-        "Missing call to `mu_end` after `mu_begin` function.",
-    );
+    mu_expect(ctx.text_width && ctx.text_height, "Missing text measurement functions (ctx.text_width, ctx.text_height).");
+    mu_expect(!ctx.is_expecting_end, "Missing call to `mu_end` after `mu_begin` function.");
+
     ctx.command_list.idx = 0;
     ctx.root_list.idx = 0;
     ctx.scroll_target = null;
@@ -667,16 +656,17 @@ void mu_begin(mu_Context* ctx) {
     ctx.mouse_delta.y = ctx.mouse_pos.y - ctx.last_mouse_pos.y;
     ctx.frame += 1;
     ctx.is_expecting_end = true;
+    ctx.button_counter = 0;
 }
 
 void mu_end(mu_Context *ctx) {
-    int i, n;
     /* check stacks */
     mu_expect(ctx.container_stack.idx == 0, "Container stack is not empty.");
     mu_expect(ctx.clip_stack.idx      == 0, "Clip stack is not empty.");
     mu_expect(ctx.id_stack.idx        == 0, "ID stack is not empty.");
     mu_expect(ctx.layout_stack.idx    == 0, "Layout stack is not empty.");
     ctx.is_expecting_end = false;
+    ctx.button_counter = 0;
 
     /* handle scroll input */
     if (ctx.scroll_target) {
@@ -685,9 +675,7 @@ void mu_end(mu_Context *ctx) {
     }
 
     /* unset focus if focus id was not touched this frame */
-    if (!ctx.updated_focus) {
-        ctx.focus = 0;
-    }
+    if (!ctx.updated_focus) { ctx.focus = 0; }
     ctx.updated_focus = 0;
 
     /* bring hover root to front if mouse was pressed */
@@ -703,12 +691,11 @@ void mu_end(mu_Context *ctx) {
     ctx.last_mouse_pos = ctx.mouse_pos;
 
     /* sort root containers by zindex */
-    /* NOTE(Kapendev): Like, totally just slappin that `extern(C)` vibe on the function so it, like, *totes* vibes with qsort, ya know? */
-    n = ctx.root_list.idx;
+    int n = ctx.root_list.idx;
     qsort(ctx.root_list.items.ptr, n, (mu_Container*).sizeof, cast(STDLIB_QSORT_FUNC) &compare_zindex);
 
     /* set root container jump commands */
-    for (i = 0; i < n; i += 1) {
+    foreach (i; 0 .. n) {
         mu_Container* cnt = ctx.root_list.items[i];
         /* if this is the first container then make the first command jump to it.
         ** otherwise set the previous container's tail to jump to this one */
@@ -731,7 +718,9 @@ void mu_set_focus(mu_Context* ctx, mu_Id id) {
     ctx.updated_focus = 1;
 }
 
-mu_Id mu_get_id(mu_Context* ctx, const(void)* data, size_t size) {
+mu_Id mu_get_id(mu_Context *ctx, const(void)* data, size_t size) {
+    enum HASH_INITIAL = 2166136261; // A 32bit fnv-1a hash.
+
     int idx = ctx.id_stack.idx;
     mu_Id res = (idx > 0) ? ctx.id_stack.items[idx - 1] : HASH_INITIAL;
     hash(&res, data, size);
@@ -739,8 +728,16 @@ mu_Id mu_get_id(mu_Context* ctx, const(void)* data, size_t size) {
     return res;
 }
 
+mu_Id mu_get_id_str(mu_Context *ctx, const(char)[] str) {
+    return mu_get_id(ctx, str.ptr, str.length);
+}
+
 void mu_push_id(mu_Context* ctx, const(void)* data, size_t size) {
     ctx.id_stack.push(mu_get_id(ctx, data, size));
+}
+
+void mu_push_id_str(mu_Context* ctx, const(char)[] str) {
+    ctx.id_stack.push(mu_get_id(ctx, str.ptr, str.length));
 }
 
 void mu_pop_id(mu_Context* ctx) {
@@ -786,12 +783,12 @@ void mu_bring_to_front(mu_Context* ctx, mu_Container* cnt) {
 ** pool
 **============================================================================*/
 
-int mu_pool_init(mu_Context* ctx, mu_PoolItem* items, int len, mu_Id id) {
-    int i, n = -1, f = ctx.frame;
-    for (i = 0; i < len; i += 1) {
+int mu_pool_init(mu_Context* ctx, mu_PoolItem* items, size_t len, mu_Id id) {
+    int n = -1, f = ctx.frame;
+    foreach (i; 0 .. len) {
         if (items[i].last_update < f) {
             f = items[i].last_update;
-            n = i;
+            n = cast(int) i;
         }
     }
     mu_expect(n > -1);
@@ -800,15 +797,14 @@ int mu_pool_init(mu_Context* ctx, mu_PoolItem* items, int len, mu_Id id) {
     return n;
 }
 
-int mu_pool_get(mu_Context* ctx, mu_PoolItem* items, int len, mu_Id id) {
-    int i;
-    for (i = 0; i < len; i += 1) {
-        if (items[i].id == id) { return i; }
+int mu_pool_get(mu_Context* ctx, mu_PoolItem* items, size_t len, mu_Id id) {
+    foreach (i; 0 .. len) {
+        if (items[i].id == id) { return cast(int) i; }
     }
     return -1;
 }
 
-void mu_pool_update(mu_Context* ctx, mu_PoolItem* items, int idx) {
+void mu_pool_update(mu_Context* ctx, mu_PoolItem* items, size_t idx) {
     items[idx].last_update = ctx.frame;
 }
 
@@ -862,7 +858,7 @@ mu_Command* mu_push_command(mu_Context* ctx, mu_CommandEnum type, size_t size) {
     mu_Command* cmd = cast(mu_Command*) (ctx.command_list.items.ptr + ctx.command_list.idx);
     mu_expect(ctx.command_list.idx + size < MU_COMMANDLIST_SIZE);
     cmd.base.type = type;
-    cmd.base.size = cast(int) size; // No idea why this is an int and I don't care.
+    cmd.base.size = cast(int) size;
     ctx.command_list.idx += size;
     return cmd;
 }
@@ -911,9 +907,10 @@ void mu_draw_text(mu_Context* ctx, mu_Font font, const(char)[] str, mu_Vec2 pos,
     if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
     /* add command */
     // if (len < 0) { len = strlen(str); }
-    cmd = mu_push_command(ctx, MU_COMMAND_TEXT, cast(int) mu_TextCommand.sizeof + str.length);
-    memcpy(cmd.text.str.ptr, str.ptr, str.length); // NOTE(Kapendev): Maybe there should be a check here, but maybe not.
-    cmd.text.str.ptr[str.length] = '\0';           // NOTE(Kapendev): See `MU_COMMANDLIST_SIZE`.
+    cmd = mu_push_command(ctx, MU_COMMAND_TEXT, mu_TextCommand.sizeof + str.length);
+    mu_expect(str.length < MU_STR_SIZE); // NOTE(Kapendev): Not the best check.
+    memcpy(cmd.text.str.ptr, str.ptr, str.length);
+    cmd.text.str.ptr[str.length] = '\0';
     cmd.text.pos = pos;
     cmd.text.color = color;
     cmd.text.font = font;
@@ -945,7 +942,7 @@ void mu_layout_begin_column(mu_Context* ctx) {
 }
 
 void mu_layout_end_column(mu_Context* ctx) {
-    mu_Layout* a; mu_Layout* b;
+    mu_Layout* a, b;
     b = get_layout(ctx);
     ctx.layout_stack.pop();
     /* inherit position/next_row/max from child layout if they are greater */
@@ -956,29 +953,22 @@ void mu_layout_end_column(mu_Context* ctx) {
     a.max.y = mu_max(a.max.y, b.max.y);
 }
 
-@trusted // NOTE(Kapendev): Sokol-d likes the `-preview=safer` flag.
-void mu_layout_row(mu_Context* ctx, int height, const(int)[] widths...) {
-    mu_Layout* layout = get_layout(ctx);
-    if (widths.length > 0 && widths.ptr) {
-        mu_expect(widths.length <= MU_MAX_WIDTHS);
-        memcpy(layout.widths.ptr, widths.ptr, widths[0].sizeof * widths.length);
-    }
-    layout.items = cast(int) widths.length;
-    layout.position = mu_vec2(layout.indent, layout.next_row);
-    layout.size.y = height;
-    layout.item_index = 0;
-}
-
 void mu_layout_row_legacy(mu_Context* ctx, int items, const(int)* widths, int height) {
     mu_Layout* layout = get_layout(ctx);
-    if (items > 0 && widths) {
+    if (widths) {
         mu_expect(items <= MU_MAX_WIDTHS);
-        memcpy(layout.widths.ptr, widths, widths[0].sizeof * items);
+        memcpy(layout.widths.ptr, widths, items * widths[0].sizeof);
     }
     layout.items = items;
     layout.position = mu_vec2(layout.indent, layout.next_row);
     layout.size.y = height;
     layout.item_index = 0;
+}
+
+// NOTE(Kapendev): Sokol-d likes the `-preview=safer` flag.
+@trusted
+void mu_layout_row(mu_Context* ctx, int height, const(int)[] widths...) {
+    mu_layout_row_legacy(ctx, cast(int) widths.length, widths.ptr, height);
 }
 
 void mu_layout_width(mu_Context* ctx, int width) {
@@ -989,7 +979,7 @@ void mu_layout_height(mu_Context* ctx, int height) {
     get_layout(ctx).size.y = height;
 }
 
-void mu_layout_set_next(mu_Context* ctx, mu_Rect r, bool relative = true) {
+void mu_layout_set_next(mu_Context* ctx, mu_Rect r, bool relative) {
     mu_Layout* layout = get_layout(ctx);
     layout.next = r;
     layout.next_type = relative ? RELATIVE : ABSOLUTE;
@@ -1021,7 +1011,6 @@ mu_Rect mu_layout_next(mu_Context* ctx) {
         if (res.h <  0) { res.h += layout.body.h - res.y + 1; }
         layout.item_index++;
     }
-
     /* update position */
     layout.position.x += res.w + style.spacing;
     layout.next_row = mu_max(layout.next_row, res.y + res.h + style.spacing);
@@ -1031,7 +1020,8 @@ mu_Rect mu_layout_next(mu_Context* ctx) {
     /* update max position */
     layout.max.x = mu_max(layout.max.x, res.x + res.w);
     layout.max.y = mu_max(layout.max.y, res.y + res.h);
-    return (ctx.last_rect = res);
+    ctx.last_rect = res;
+    return ctx.last_rect;
 }
 
 /*============================================================================
@@ -1084,8 +1074,12 @@ void mu_update_control(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_OptFlags opt)
     }
 }
 
+void mu_text_legacy(mu_Context* ctx, const(char)* text) {
+    mu_text(ctx, text[0 .. (text ? strlen(text) : 0)]);
+}
+
 // NOTE(Kapendev): Might need checking. I replaced lines without thinking too much about it. Original code had bugs too btw.
-void mu_text(mu_Context* ctx, const(char)[] text, int offset = 0) {
+void mu_text(mu_Context* ctx, const(char)[] text) {
     mu_Font font = ctx.style.font;
     mu_Color color = ctx.style.colors[MU_COLOR_TEXT];
     mu_layout_begin_column(ctx);
@@ -1105,34 +1099,28 @@ void mu_text(mu_Context* ctx, const(char)[] text, int offset = 0) {
                 while (p < text.ptr + text.length && *p != ' ' && *p != '\n') { p += 1; }
                 w += ctx.text_width(font, word[0 .. p - word]); // NOTE(Kapendev): Original was `text_width(font, word, cast(int) (p - word)`.
                 if (w > r.w && end != start) { break; }
-                // w += ctx.text_width(font, p[0 .. 1]);        // NOTE(Kapendev): Original was `text_width(font, p, 1)`.
                 end = p++;
             } while(end < text.ptr + text.length && *end != '\n');
-            mu_draw_text(ctx, font, start[0 .. end - start], mu_vec2(r.x + offset, r.y), color); // NOTE(Kapendev): Original was `mu_draw_text(ctx, font, start, cast(int) (end - start), mu_vec2(r.x, r.y), color)`.
+            mu_draw_text(ctx, font, start[0 .. end - start], mu_vec2(r.x, r.y), color); // NOTE(Kapendev): Original was `mu_draw_text(ctx, font, start, cast(int) (end - start), mu_vec2(r.x, r.y), color)`.
             p = end + 1;
         } while(end < text.ptr + text.length);
     }
     mu_layout_end_column(ctx);
 }
 
-void mu_text_block(mu_Context* ctx, const(char)[] text, int width, int offset = 0) {
-    mu_Font font = ctx.style.font;
-    mu_layout_begin_column(ctx);
-    mu_layout_set_next(ctx, mu_rect(offset, 0, width, 0));
-    mu_text(ctx, text);
-    mu_layout_set_next(ctx, mu_rect(offset, ctx.text_height(font) * 2, width, 0));
-    mu_text(ctx, " "); // HAHAHA
-    mu_layout_end_column(ctx);
+void mu_label_legacy(mu_Context* ctx, const(char)* text) {
+    mu_label(ctx, text[0 .. (text ? strlen(text) : 0)]);
 }
 
 void mu_label(mu_Context* ctx, const(char)[] text) {
     mu_draw_control_text(ctx, text, mu_layout_next(ctx), MU_COLOR_TEXT, 0);
 }
 
-mu_ResFlags mu_button_ex(mu_Context* ctx, const(char)[] label, mu_IconEnum icon, mu_OptFlags opt) {
-    mu_ResFlags res = 0;
-    // NOTE: Original was `label ?` and new one is `label.ptr ?`. They work the same.
-    mu_Id id = label.ptr ? mu_get_id(ctx, label.ptr, label.length) : mu_get_id(ctx, &icon, icon.sizeof);
+mu_ResFlags mu_button_ex_legacy(mu_Context* ctx, const(char)[] label, mu_IconEnum icon, mu_OptFlags opt) {
+    mu_ResFlags res = MU_RES_NONE;
+    mu_Id id = (label.ptr && label.length)
+        ? mu_get_id(ctx, label.ptr, label.length)
+        : mu_get_id(ctx, &icon, icon.sizeof);
     mu_Rect r = mu_layout_next(ctx);
     mu_update_control(ctx, id, r, opt);
     /* handle click */
@@ -1144,12 +1132,20 @@ mu_ResFlags mu_button_ex(mu_Context* ctx, const(char)[] label, mu_IconEnum icon,
     return res;
 }
 
-mu_ResFlags mu_button(mu_Context* ctx, const(char)[] label) {
-    return mu_button_ex(ctx, label, 0, 0);
+mu_ResFlags mu_button_ex(mu_Context* ctx, const(char)[] label, mu_IconEnum icon, mu_OptFlags opt) {
+    mu_push_id(ctx, &ctx.button_counter, ctx.button_counter.sizeof);
+    auto res = mu_button_ex_legacy(ctx, label, icon, opt);
+    mu_pop_id(ctx);
+    ctx.button_counter += 1;
+    return res;
 }
 
-mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, ref bool state) {
-    mu_ResFlags res = 0;
+mu_ResFlags mu_button(mu_Context* ctx, const(char)[] label) {
+    return mu_button_ex(ctx, label, 0, MU_OPT_ALIGNCENTER);
+}
+
+mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, bool* state) {
+    mu_ResFlags res = MU_RES_NONE;
     mu_Id id = mu_get_id(ctx, &state, state.sizeof);
     mu_Rect r = mu_layout_next(ctx);
     mu_Rect box = mu_rect(r.x, r.y, r.h, r.h);
@@ -1157,11 +1153,11 @@ mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, ref bool state) {
     /* handle click */
     if (ctx.mouse_pressed == MU_MOUSE_LEFT && ctx.focus == id) {
         res |= MU_RES_CHANGE;
-        state = !state;
+        *state = !*state;
     }
     /* draw */
     mu_draw_control_frame(ctx, id, box, MU_COLOR_BASE, 0);
-    if (state) {
+    if (*state) {
         mu_draw_icon(ctx, MU_ICON_CHECK, box, ctx.style.colors[MU_COLOR_TEXT]);
     }
     r = mu_rect(r.x + box.w, r.y, r.w - box.w, r.h);
@@ -1284,7 +1280,7 @@ mu_ResFlags mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real h
 }
 
 mu_ResFlags mu_slider(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high) {
-    return mu_slider_ex(ctx, value, low, high, 0.01f, MU_SLIDER_FMT, 0);
+    return mu_slider_ex(ctx, value, low, high, 0.01f, MU_SLIDER_FMT, MU_OPT_ALIGNCENTER);
 }
 
 mu_ResFlags mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {
@@ -1319,8 +1315,8 @@ mu_ResFlags mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(ch
     return res;
 }
 
-mu_ResFlags mu_number(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt) {
-    return mu_number_ex(ctx, value, step, fmt, 0);
+mu_ResFlags mu_number(mu_Context* ctx, mu_Real* value, mu_Real step) {
+    return mu_number_ex(ctx, value, step, MU_SLIDER_FMT, MU_OPT_ALIGNCENTER);
 }
 
 mu_ResFlags mu_header_ex(mu_Context* ctx, const(char)[] label, mu_OptFlags opt) {

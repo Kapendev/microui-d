@@ -1,5 +1,8 @@
-import murl;   // Equivalent to `import microui`, with additional helper functions for raylib.
-import parin.rl; // This example assumes you are using https://github.com/schveiguy/raylib-d.
+/// This example shows how to use microui with raylib.
+/// It assumes you are using: https://github.com/schveiguy/raylib-d.
+
+import murl; // Equivalent to `import microui`, with additional helper functions for raylib.
+import raylib;
 
 void main() {
     char[512] buffer = '\0';
@@ -9,7 +12,7 @@ void main() {
     InitWindow(800, 600, "raylib + microui");
     auto font = GetFontDefault();
     auto ctx = new mu_Context();
-    murl_init_with_temp_funcs(ctx, &font);
+    murl_init(ctx, &font);
 
     while (!WindowShouldClose) {
         // Update the UI.
