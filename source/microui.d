@@ -29,12 +29,12 @@
 */
 
 // TODO: Add more doc comments.
-// TODO: Add maybe attributes.
+// TODO: work on attributes maybe.
 
 /// A tiny immediate-mode UI library.
 module microui;
 
-private extern(C) nothrow @nogc {
+private extern(C) {
     // External dependencies required by microui.
     alias STDLIB_QSORT_FUNC = int function(const(void)* a, const(void)* b);
     int sprintf(char* buffer, const(char)* format, ...);
@@ -176,9 +176,8 @@ struct mu_Array(T, size_t N) {
 
     enum length = N;
 
-    @safe nothrow @nogc:
+    @trusted nothrow @nogc:
 
-    @trusted
     this(const(T)[] items...) {
         auto datadata = this.items;
         foreach (i; 0 .. N) datadata[i] = cast(T) items[i];
@@ -204,12 +203,12 @@ struct mu_Array(T, size_t N) {
         return items[i];
     }
 
-    pragma(inline, true) @trusted
+    pragma(inline, true)
     void opIndexAssign(const(T) rhs, size_t i) {
         items[i] = cast(T) rhs;
     }
 
-    pragma(inline, true) @trusted
+    pragma(inline, true)
     void opIndexOpAssign(const(char)[] op)(const(T) rhs, size_t i) {
         mixin("items[i]", op, "= cast(T) rhs;");
     }
@@ -220,13 +219,13 @@ struct mu_Array(T, size_t N) {
     }
 
     /// Returns the items of the array.
-    pragma(inline, true) @trusted
+    pragma(inline, true)
     T[] items() {
         return (cast(T*) data.ptr)[0 .. N];
     }
 
     /// Returns the pointer of the array.
-    pragma(inline, true) @trusted
+    pragma(inline, true)
     T* ptr() {
         return cast(T*) data.ptr;
     }
@@ -376,6 +375,8 @@ struct mu_Context {
     char[MU_INPUTTEXT_SIZE] input_text;
 }
 
+@trusted:
+
 private void draw_frame(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid) {
     mu_draw_rect(ctx, rect, ctx.style.colors[colorid]);
     if (colorid == MU_COLOR_SCROLLBASE || colorid == MU_COLOR_SCROLLTHUMB || colorid == MU_COLOR_TITLEBG) return;
@@ -480,7 +481,7 @@ private bool number_textbox(mu_Context* ctx, mu_Real* value, mu_Rect r, mu_Id id
 private mu_ResFlags header(mu_Context* ctx, const(char)[] label, int istreenode, mu_OptFlags opt) {
     mu_Rect r;
     int active, expanded;
-    mu_Id id = mu_get_id(ctx, label.ptr, label.length);
+    mu_Id id = mu_get_id_str(ctx, label);
     int idx = mu_pool_get(ctx, ctx.treenode_pool.ptr, MU_TREENODEPOOL_SIZE, id);
     mu_layout_row(ctx, 0, -1);
 
@@ -566,15 +567,14 @@ private void mu_expect(bool x, const(char)[] message = "Fatal microui error.") =
 
 // Temporary text measurement function for prototyping.
 private int mu_temp_text_width_func(mu_Font font, const(char)[] str) => 200;
-
-//  Temporary text measurement function for prototyping.
+// Temporary text measurement function for prototyping.
 private int mu_temp_text_height_func(mu_Font font) => 20;
 
 T mu_min(T)(T a, T b)        => ((a) < (b) ? (a) : (b));
 T mu_max(T)(T a, T b)        => ((a) > (b) ? (a) : (b));
 T mu_clamp(T)(T x, T a, T b) => mu_min(b, mu_max(a, x));
 
-extern(C):
+extern(C) @trusted:
 
 mu_Vec2 mu_vec2(int x, int y) {
     return mu_Vec2(x, y);
@@ -771,7 +771,7 @@ mu_Container* mu_get_current_container(mu_Context* ctx) {
 }
 
 mu_Container* mu_get_container(mu_Context* ctx, const(char)[] name) {
-    mu_Id id = mu_get_id(ctx, name.ptr, name.length);
+    mu_Id id = mu_get_id_str(ctx, name);
     return get_container(ctx, id, 0);
 }
 
@@ -966,7 +966,6 @@ void mu_layout_row_legacy(mu_Context* ctx, int items, const(int)* widths, int he
 }
 
 // NOTE(Kapendev): Sokol-d likes the `-preview=safer` flag.
-@trusted
 void mu_layout_row(mu_Context* ctx, int height, const(int)[] widths...) {
     mu_layout_row_legacy(ctx, cast(int) widths.length, widths.ptr, height);
 }
@@ -1119,7 +1118,7 @@ void mu_label(mu_Context* ctx, const(char)[] text) {
 mu_ResFlags mu_button_ex_legacy(mu_Context* ctx, const(char)[] label, mu_IconEnum icon, mu_OptFlags opt) {
     mu_ResFlags res = MU_RES_NONE;
     mu_Id id = (label.ptr && label.length)
-        ? mu_get_id(ctx, label.ptr, label.length)
+        ? mu_get_id_str(ctx, label)
         : mu_get_id(ctx, &icon, icon.sizeof);
     mu_Rect r = mu_layout_next(ctx);
     mu_update_control(ctx, id, r, opt);
@@ -1350,7 +1349,7 @@ void scrollbar(const(char)[] x, const(char)[] y, const(char)[] w, const(char)[] 
     int maxscroll = cs.y - b.h;
     if (maxscroll > 0 && b.h > 0) {
         mu_Rect base; mu_Rect thumb;
-        mu_Id id = mu_get_id(ctx, ("!scrollbar" ~ y).ptr, 11); // NOTE(Kapendev): In C it was something like `#y`.
+        mu_Id id = mu_get_id_str(ctx, "!scrollbar" ~ y); // NOTE(Kapendev): In C it was something like `#y`.
         /* get sizing/positioning */
         base = *b;
         base.x = b.x + b.w;
@@ -1376,7 +1375,7 @@ void scrollbar(const(char)[] x, const(char)[] y, const(char)[] w, const(char)[] 
 
 mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rect, mu_OptFlags opt) {
     mu_Rect body;
-    mu_Id id = mu_get_id(ctx, title.ptr, title.length);
+    mu_Id id = mu_get_id_str(ctx, title);
     mu_Container* cnt = get_container(ctx, id, opt);
     if (!cnt || !cnt.open) { return 0; }
     ctx.id_stack.push(id);
@@ -1397,7 +1396,7 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
         ctx.draw_frame(ctx, tr, MU_COLOR_TITLEBG);
         /* do title text */
         if (~opt & MU_OPT_NOTITLE) {
-            mu_Id id2 = mu_get_id(ctx, "!title".ptr, 6); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
+            mu_Id id2 = mu_get_id_str(ctx, "!title"); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
             mu_update_control(ctx, id2, tr, opt);
             mu_draw_control_text(ctx, title, tr, MU_COLOR_TITLETEXT, opt);
             if (id2 == ctx.focus && ctx.mouse_down == MU_MOUSE_LEFT) {
@@ -1409,7 +1408,7 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
         }
         /* do `close` button */
         if (~opt & MU_OPT_NOCLOSE) {
-            mu_Id id2 = mu_get_id(ctx, "!close".ptr, 6); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
+            mu_Id id2 = mu_get_id_str(ctx, "!close"); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
             mu_Rect r = mu_rect(tr.x + tr.w - tr.h, tr.y, tr.h, tr.h);
             tr.w -= r.w;
             mu_draw_icon(ctx, MU_ICON_CLOSE, r, ctx.style.colors[MU_COLOR_TITLETEXT]);
@@ -1423,7 +1422,7 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
     /* do `resize` handle */
     if (~opt & MU_OPT_NORESIZE) {
         int sz = ctx.style.title_height;
-        mu_Id id2 = mu_get_id(ctx, "!resize".ptr, 7); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
+        mu_Id id2 = mu_get_id_str(ctx, "!resize"); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
         mu_Rect r = mu_rect(rect.x + rect.w - sz, rect.y + rect.h - sz, sz, sz);
         mu_update_control(ctx, id2, r, opt);
         if (id2 == ctx.focus && ctx.mouse_down == MU_MOUSE_LEFT) {
@@ -1473,7 +1472,7 @@ void mu_end_popup(mu_Context* ctx) {
 
 void mu_begin_panel_ex(mu_Context* ctx, const(char)[] name, mu_OptFlags opt) {
     mu_Container* cnt;
-    mu_push_id(ctx, name.ptr, name.length);
+    mu_push_id_str(ctx, name);
     cnt = get_container(ctx, ctx.last_id, opt);
     cnt.rect = mu_layout_next(ctx);
     if (~opt & MU_OPT_NOFRAME) { ctx.draw_frame(ctx, cnt.rect, MU_COLOR_PANELBG); }

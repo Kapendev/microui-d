@@ -6,14 +6,14 @@
 // Version: v0.0.1
 // ---
 
-// TODO: Add maybe attributes.
+// TODO: work on attributes maybe.
 
 /// Equivalent to `import microui`, with additional helper functions for raylib.
 module murl;
 
 public import microui;
 
-private extern(C) nothrow @nogc {
+private extern(C) {
     enum MOUSE_BUTTON_LEFT   = 0;
     enum MOUSE_BUTTON_RIGHT  = 1;
     enum MOUSE_BUTTON_MIDDLE = 2;
@@ -74,19 +74,20 @@ private extern(C) nothrow @nogc {
     void DrawRectangleRec(Rectangle rec, Color color);
 }
 
-/// Temporary text measurement function for prototyping.
-int murl_temp_text_width_func(mu_Font font, const(char)[] str) {
+@trusted:
+
+// Temporary text measurement function for prototyping.
+private int murl_temp_text_width_func(mu_Font font, const(char)[] str) {
     auto data = cast(Font*) font;
     return cast(int) MeasureTextEx(*data, str.ptr, data.baseSize, 1).x;
 }
-
-/// Temporary text measurement function for prototyping.
-int murl_temp_text_height_func(mu_Font font) {
+// Temporary text measurement function for prototyping.
+private int murl_temp_text_height_func(mu_Font font) {
     auto data = cast(Font*) font;
     return data.baseSize;
 }
 
-extern(C):
+extern(C) @trusted:
 
 /// Initializes the microui context and sets temporary text size functions. Value `font` should be a `Font*`.
 void murl_init(mu_Context* ctx, mu_Font font = null) {

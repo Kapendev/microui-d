@@ -23,107 +23,10 @@ struct state_t { color_t bg; mu_Context mu_ctx; }
 int text_width_cb(mu_Font font, const(char)[] text) => r_get_text_width(text);
 int text_height_cb(mu_Font font) => r_get_text_height();
 
-// initialization
-extern(C)
-void init() {
-    // setup sokol-gfx
-    sg.Desc desc_gfx;
-    desc_gfx.environment = sglue.environment();
-    desc_gfx.logger.func = &slog.func;
-    sg.setup(desc_gfx);
-
-    // setup sokol-gl
-    sgl.Desc desc_gl;
-    desc_gl.logger.func = &slog.func;
-    sgl.setup(desc_gl);
-
-    // setup microui renderer
-    r_init();
-
-    // setup microui
-    mu_init(&state.mu_ctx);
-    state.mu_ctx.text_width = &text_width_cb;
-    state.mu_ctx.text_height = &text_height_cb;
-}
-
-extern(C)
-void event(const(sapp.Event)* ev) {
-    switch (ev.type) {
-        case sapp.EventType.Mouse_down:
-            mu_input_mousedown(&state.mu_ctx, cast(int) ev.mouse_x, cast(int) ev.mouse_y, (1<<ev.mouse_button));
-            break;
-        case sapp.EventType.Mouse_up:
-            mu_input_mouseup(&state.mu_ctx, cast(int) ev.mouse_x, cast(int) ev.mouse_y, (1<<ev.mouse_button));
-            break;
-        case sapp.EventType.Mouse_move:
-            mu_input_mousemove(&state.mu_ctx, cast(int) ev.mouse_x, cast(int) ev.mouse_y);
-            break;
-        case sapp.EventType.Mouse_scroll:
-            mu_input_scroll(&state.mu_ctx, 0, cast(int) ev.scroll_y * -30);
-            break;
-        case sapp.EventType.Key_down:
-            mu_input_keydown(&state.mu_ctx, key_map[ev.key_code & 511]);
-            break;
-        case sapp.EventType.Key_up:
-            mu_input_keyup(&state.mu_ctx, key_map[ev.key_code & 511]);
-            break;
-        case sapp.EventType.Char: {
-                // don't input Backspace as character (required to make Backspace work in text input fields)
-                if (ev.char_code == 127) { break; }
-                static char[2] txt = '\0';
-                txt = [cast(char) (ev.char_code & 255), 0];
-                mu_input_text(&state.mu_ctx, txt);
-            }
-            break;
-        default:
-            break;
-    }
-}
-
-// do one frame
-extern(C)
-void frame() {
-    // UI definition
-    mu_begin(&state.mu_ctx);
-    test_window(&state.mu_ctx);
-    mu_end(&state.mu_ctx);
-
-    // micro-ui rendering
-    r_begin(sapp.width(), sapp.height());
-    static mu_Command* cmd; // NOTE(Kapendev): Maybe it's a good idea to not use `-preview=safer` with microui.
-    cmd = null;
-    while(mu_next_command(&state.mu_ctx, &cmd)) {
-        switch (cmd.type) {
-            case MU_COMMAND_TEXT: r_draw_text(cmd.text.str.ptr, cmd.text.pos, cmd.text.color); break;
-            case MU_COMMAND_RECT: r_draw_rect(cmd.rect.rect, cmd.rect.color); break;
-            case MU_COMMAND_ICON: r_draw_icon(cmd.icon.id, cmd.icon.rect, cmd.icon.color); break;
-            case MU_COMMAND_CLIP: r_set_clip_rect(cmd.clip.rect); break;
-            default: break;
-        }
-    }
-    r_end();
-
-    // render the sokol-gfx default pass
-    sg.Pass pass;
-    pass.action.colors[0].load_action = sg.LoadAction.Clear;
-    pass.action.colors[0].clear_value = sg.Color(state.bg.r / 255.0f, state.bg.g / 255.0f, state.bg.b / 255.0f, 1.0f);
-    pass.swapchain = sglue.swapchain();
-    sg.beginPass(pass);
-    r_draw();
-    sg.endPass();
-    sg.commit();
-}
-
-extern(C)
-void cleanup() {
-    sgl.shutdown();
-    sg.shutdown();
-}
-
-static void test_window(mu_Context* ctx) {
+void demo_window(mu_Context* ctx) {
     /* do window */
     if (mu_begin_window(ctx, "Demo Window", mu_rect(40, 40, 300, 450))) {
-        mu_Container *win = mu_get_current_container(ctx);
+        mu_Container* win = mu_get_current_container(ctx);
         win.rect.w = mu_max(win.rect.w, 240);
         win.rect.h = mu_max(win.rect.h, 300);
 
@@ -219,6 +122,102 @@ static void test_window(mu_Context* ctx) {
 
         mu_end_window(ctx);
     }
+}
+
+// initialization
+extern(C)
+void init() {
+    // setup sokol-gfx
+    sg.Desc desc_gfx;
+    desc_gfx.environment = sglue.environment();
+    desc_gfx.logger.func = &slog.func;
+    sg.setup(desc_gfx);
+
+    // setup sokol-gl
+    sgl.Desc desc_gl;
+    desc_gl.logger.func = &slog.func;
+    sgl.setup(desc_gl);
+
+    // setup microui renderer
+    r_init();
+
+    // setup microui
+    mu_init(&state.mu_ctx);
+    state.mu_ctx.text_width = &text_width_cb;
+    state.mu_ctx.text_height = &text_height_cb;
+}
+
+extern(C)
+void event(const(sapp.Event)* ev) {
+    switch (ev.type) {
+        case sapp.EventType.Mouse_down:
+            mu_input_mousedown(&state.mu_ctx, cast(int) ev.mouse_x, cast(int) ev.mouse_y, (1<<ev.mouse_button));
+            break;
+        case sapp.EventType.Mouse_up:
+            mu_input_mouseup(&state.mu_ctx, cast(int) ev.mouse_x, cast(int) ev.mouse_y, (1<<ev.mouse_button));
+            break;
+        case sapp.EventType.Mouse_move:
+            mu_input_mousemove(&state.mu_ctx, cast(int) ev.mouse_x, cast(int) ev.mouse_y);
+            break;
+        case sapp.EventType.Mouse_scroll:
+            mu_input_scroll(&state.mu_ctx, 0, cast(int) ev.scroll_y * -30);
+            break;
+        case sapp.EventType.Key_down:
+            mu_input_keydown(&state.mu_ctx, key_map[ev.key_code & 511]);
+            break;
+        case sapp.EventType.Key_up:
+            mu_input_keyup(&state.mu_ctx, key_map[ev.key_code & 511]);
+            break;
+        case sapp.EventType.Char: {
+                // don't input Backspace as character (required to make Backspace work in text input fields)
+                if (ev.char_code == 127) { break; }
+                static char[2] txt = '\0';
+                txt = [cast(char) (ev.char_code & 255), 0];
+                mu_input_text(&state.mu_ctx, txt);
+            }
+            break;
+        default:
+            break;
+    }
+}
+
+// do one frame
+extern(C) @trusted
+void frame() {
+    // UI definition
+    mu_begin(&state.mu_ctx);
+    demo_window(&state.mu_ctx);
+    mu_end(&state.mu_ctx);
+
+    // micro-ui rendering
+    r_begin(sapp.width(), sapp.height());
+    mu_Command* cmd;
+    while(mu_next_command(&state.mu_ctx, &cmd)) {
+        switch (cmd.type) {
+            case MU_COMMAND_TEXT: r_draw_text(cmd.text.str.ptr, cmd.text.pos, cmd.text.color); break;
+            case MU_COMMAND_RECT: r_draw_rect(cmd.rect.rect, cmd.rect.color); break;
+            case MU_COMMAND_ICON: r_draw_icon(cmd.icon.id, cmd.icon.rect, cmd.icon.color); break;
+            case MU_COMMAND_CLIP: r_set_clip_rect(cmd.clip.rect); break;
+            default: break;
+        }
+    }
+    r_end();
+
+    // render the sokol-gfx default pass
+    sg.Pass pass;
+    pass.action.colors[0].load_action = sg.LoadAction.Clear;
+    pass.action.colors[0].clear_value = sg.Color(state.bg.r / 255.0f, state.bg.g / 255.0f, state.bg.b / 255.0f, 1.0f);
+    pass.swapchain = sglue.swapchain();
+    sg.beginPass(pass);
+    r_draw();
+    sg.endPass();
+    sg.commit();
+}
+
+extern(C)
+void cleanup() {
+    sgl.shutdown();
+    sg.shutdown();
 }
 
 //== micrui renderer ===========================================================

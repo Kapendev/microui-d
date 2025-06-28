@@ -1,7 +1,8 @@
 # 🔩 microui-D
 
-A tiny, portable, immediate-mode UI library written in D.
-Microui-D is a complete rewrite of [rxi's microui](https://github.com/rxi/microui) library.
+A tiny and portable immediate-mode UI library written in D.
+Microui-D is a complete rewrite of [rxi's microui](https://github.com/rxi/microui).
+It's 90% the same library, adapted with D-specific improvements where appropriate.
 
 ## Major Features
 
@@ -11,18 +12,14 @@ Microui-D is a complete rewrite of [rxi's microui](https://github.com/rxi/microu
 * Easily extensible with custom controls
 * Optional helper modules for other libraries ([raylib](source/murl.d), [parin](source/mupr.d))
 * C interface for cross-language use
-* WebAssembly support with BetterC
 
-## Hello World Example Using Raylib
+## Hello World Example
 
 ```d
 import murl; // Equivalent to `import microui`, with additional helper functions for raylib.
 import raylib;
 
 void main() {
-    char[512] buffer = '\0';
-    auto number = 0.0f;
-
     // Create the window and the UI context.
     InitWindow(800, 600, "raylib + microui");
     auto font = GetFontDefault();
@@ -35,8 +32,6 @@ void main() {
         mu_begin(ctx);
         if (mu_begin_window(ctx, "The Window", mu_rect(40, 40, 300, 200))) {
             mu_button(ctx, "My Button");
-            mu_slider(ctx, &number, 0, 100);
-            mu_textbox(ctx, buffer.ptr, buffer.length);
             mu_end_window(ctx);
         }
         mu_end(ctx);
@@ -52,4 +47,4 @@ void main() {
 ## Documentation
 
 Start with the [examples](./examples/) folder for a quick overview.
-For more details, check out the [usage instructions](https://github.com/rxi/microui/blob/master/doc/usage.md) by rxi
+For more details, check out the [usage instructions](https://github.com/rxi/microui/blob/master/doc/usage.md) by rxi.

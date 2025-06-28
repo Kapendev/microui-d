@@ -6,14 +6,14 @@
 // Version: v0.0.1
 // ---
 
-// TODO: Add maybe attributes.
+// TODO: work on attributes maybe.
 
 /// Equivalent to `import microui`, with additional helper functions for Parin.
 module mupr;
 
 public import microui;
 
-private extern(C) nothrow @nogc {
+private extern(C) {
     enum MOUSE_BUTTON_LEFT   = 0;
     enum MOUSE_BUTTON_RIGHT  = 1;
     enum MOUSE_BUTTON_MIDDLE = 2;
@@ -141,20 +141,21 @@ private extern(C) nothrow @nogc {
     void drawRect(Rect area, Rgba color = Rgba(255, 255, 255, 255));
 }
 
-/// Temporary text measurement function for prototyping.
-int mupr_temp_text_width_func(mu_Font font, const(char)[] str) {
+@trusted:
+
+// Temporary text measurement function for prototyping.
+private int mupr_temp_text_width_func(mu_Font font, const(char)[] str) {
     auto da = cast(PFontId*) font;
     return cast(int) measureTextSize(*da, str).x;
 }
-
-/// Temporary text measurement function for prototyping.
-int mupr_temp_text_height_func(mu_Font font) {
+// Temporary text measurement function for prototyping.
+private int mupr_temp_text_height_func(mu_Font font) {
     auto da = cast(PFontId*) font;
     auto data = cast(Font*) &getFont(*da);
     return data.baseSize;
 }
 
-extern(C):
+extern(C) @trusted:
 
 /// Initializes the microui context and sets temporary text size functions. Value `font` should be a `FontId*`.
 void mupr_init(mu_Context* ctx, mu_Font font = null) {
