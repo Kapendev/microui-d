@@ -13,7 +13,7 @@ module murl;
 
 public import microui;
 
-private extern(C) {
+private extern(C) nothrow @nogc {
     enum MOUSE_BUTTON_LEFT   = 0;
     enum MOUSE_BUTTON_RIGHT  = 1;
     enum MOUSE_BUTTON_MIDDLE = 2;
@@ -91,20 +91,22 @@ extern(C) @trusted:
 
 /// Initializes the microui context and sets temporary text size functions. Value `font` should be a `Font*`.
 void murl_init(mu_Context* ctx, mu_Font font = null) {
-    mu_init_with_funcs(ctx, &murl_temp_text_width_func, &murl_temp_text_height_func, font);
-    auto data = cast(Font*) font;
-    ctx.style.size = mu_vec2(data.baseSize * 6, data.baseSize);
-    ctx.style.title_height = data.baseSize + 11;
-    if (data.baseSize <= 16) {
-        ctx.style.control_border_size = 1;
-    } else if (data.baseSize <= 64) {
-        ctx.style.control_border_size = 2;
-        ctx.style.spacing += 4;
-        ctx.style.padding += 4;
-    } else {
-        ctx.style.control_border_size = 3;
-        ctx.style.spacing += 8;
-        ctx.style.padding += 8;
+    mu_init_with_funcs(ctx, &murl_temp_text_width_func, &murl_temp_text_height_func, font ? font : ctx.style.font);
+    auto data = cast(Font*) ctx.style.font;
+    if (data) {
+        ctx.style.size = mu_vec2(data.baseSize * 6, data.baseSize);
+        ctx.style.title_height = data.baseSize + 11;
+        if (data.baseSize <= 16) {
+            ctx.style.control_border_size = 1;
+        } else if (data.baseSize <= 64) {
+            ctx.style.control_border_size = 2;
+            ctx.style.spacing += 4;
+            ctx.style.padding += 4;
+        } else {
+            ctx.style.control_border_size = 3;
+            ctx.style.spacing += 8;
+            ctx.style.padding += 8;
+        }
     }
 }
 

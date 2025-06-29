@@ -34,7 +34,7 @@
 /// A tiny immediate-mode UI library.
 module microui;
 
-private extern(C) {
+private extern(C) nothrow @nogc {
     // External dependencies required by microui.
     alias STDLIB_QSORT_FUNC = int function(const(void)* a, const(void)* b);
     int sprintf(char* buffer, const(char)* format, ...);
@@ -64,8 +64,8 @@ alias mu_OptFlags   = int;  /// The type of `MU_OPT_*` enums.
 alias mu_MouseFlags = int;  /// The type of `MU_MOUSE_*` enums.
 alias mu_KeyFlags   = int;  /// The type of `MU_KEY_*` enums.
 
-private enum RELATIVE     = 1;          // The relative layout type.
-private enum ABSOLUTE     = 2;          // The absolute layout type.
+private enum RELATIVE = 1; // The relative layout type.
+private enum ABSOLUTE = 2; // The absolute layout type.
 
 private enum mu_unclipped_rect = mu_Rect(0, 0, 0x1000000, 0x1000000);
 
@@ -253,10 +253,27 @@ struct mu_Stack(T, size_t N) {
     }
 }
 
+/// A 2D rectangle using ints.
+struct mu_Rect {
+    int x, y, w, h;
+
+    @safe nothrow @nogc pure:
+
+    mu_Rect expand(int n) {
+        return mu_expand_rect(this, n);
+    }
+
+    mu_Rect intersect(mu_Rect r2) {
+        return mu_intersect_rects(this, r2);
+    }
+
+    bool overlaps(mu_Vec2 p) {
+        return mu_rect_overlaps_vec2(this, p);
+    }
+}
+
 /// A 2D vector using ints.
 struct mu_Vec2 { int x, y; }
-/// A 2D rectangle using ints.
-struct mu_Rect { int x, y, w, h; }
 /// A RGBA color using ubytes.
 struct mu_Color { ubyte r, g, b, a; }
 /// A pool item.
@@ -288,7 +305,7 @@ union mu_Command {
     mu_IconCommand icon;
 }
 
-/// Layout state used to position UI elements within a container.
+/// Layout state used to position UI controls within a container.
 struct mu_Layout {
     mu_Rect body;
     mu_Rect next;
@@ -562,12 +579,14 @@ private void end_root_container(mu_Context* ctx) {
     pop_container(ctx);
 }
 
+// The microui assert function.
 @safe nothrow @nogc pure
 private void mu_expect(bool x, const(char)[] message = "Fatal microui error.") => assert(x, message);
-
 // Temporary text measurement function for prototyping.
+@safe nothrow @nogc pure
 private int mu_temp_text_width_func(mu_Font font, const(char)[] str) => 200;
 // Temporary text measurement function for prototyping.
+@safe nothrow @nogc pure
 private int mu_temp_text_height_func(mu_Font font) => 20;
 
 T mu_min(T)(T a, T b)        => ((a) < (b) ? (a) : (b));
@@ -576,22 +595,27 @@ T mu_clamp(T)(T x, T a, T b) => mu_min(b, mu_max(a, x));
 
 extern(C) @trusted:
 
+nothrow @nogc pure
 mu_Vec2 mu_vec2(int x, int y) {
     return mu_Vec2(x, y);
 }
 
+nothrow @nogc pure
 mu_Rect mu_rect(int x, int y, int w, int h) {
     return mu_Rect(x, y, w, h);
 }
 
+nothrow @nogc pure
 mu_Color mu_color(ubyte r, ubyte g, ubyte b, ubyte a) {
     return mu_Color(r, g, b, a);
 }
 
+nothrow @nogc pure
 mu_Rect mu_expand_rect(mu_Rect rect, int n) {
     return mu_rect(rect.x - n, rect.y - n, rect.w + n * 2, rect.h + n * 2);
 }
 
+nothrow @nogc pure
 mu_Rect mu_intersect_rects(mu_Rect r1, mu_Rect r2) {
     int x1 = mu_max(r1.x, r2.x);
     int y1 = mu_max(r1.y, r2.y);
@@ -602,10 +626,12 @@ mu_Rect mu_intersect_rects(mu_Rect r1, mu_Rect r2) {
     return mu_rect(x1, y1, x2 - x1, y2 - y1);
 }
 
+nothrow @nogc pure
 bool mu_rect_overlaps_vec2(mu_Rect r, mu_Vec2 p) {
     return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
 }
 
+nothrow @nogc
 void mu_init(mu_Context* ctx, mu_Font font = null) {
     memset(ctx, 0, (*ctx).sizeof);
     ctx.draw_frame = &draw_frame;
@@ -637,6 +663,7 @@ void mu_init(mu_Context* ctx, mu_Font font = null) {
     ctx.style.font = font;
 }
 
+nothrow @nogc
 void mu_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeightFunc height, mu_Font font = null) {
     mu_init(ctx, font);
     ctx.text_width = width;
@@ -906,9 +933,8 @@ void mu_draw_text(mu_Context* ctx, mu_Font font, const(char)[] str, mu_Vec2 pos,
     if (clipped == MU_CLIP_ALL ) { return; }
     if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
     /* add command */
-    // if (len < 0) { len = strlen(str); }
     cmd = mu_push_command(ctx, MU_COMMAND_TEXT, mu_TextCommand.sizeof + str.length);
-    mu_expect(str.length < MU_STR_SIZE); // NOTE(Kapendev): Not the best check.
+    mu_expect(str.length < MU_STR_SIZE); // TODO(Kapendev): Not the best check. It's not that bad, but maybe it could be safer.
     memcpy(cmd.text.str.ptr, str.ptr, str.length);
     cmd.text.str.ptr[str.length] = '\0';
     cmd.text.pos = pos;
@@ -1033,6 +1059,7 @@ void mu_draw_control_frame(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_ColorEnum
     ctx.draw_frame(ctx, rect, colorid);
 }
 
+// TODO(Kapendev): It's too easy to pass a C string buffer here. It can handle it, but `text_width` and `text_height` callbacks might not. Think about it.
 void mu_draw_control_text(mu_Context* ctx, const(char)[] str, mu_Rect rect, mu_ColorEnum colorid, mu_OptFlags opt) {
     mu_Vec2 pos;
     mu_Font font = ctx.style.font;
@@ -1077,7 +1104,8 @@ void mu_text_legacy(mu_Context* ctx, const(char)* text) {
     mu_text(ctx, text[0 .. (text ? strlen(text) : 0)]);
 }
 
-// NOTE(Kapendev): Might need checking. I replaced lines without thinking too much about it. Original code had bugs too btw.
+/// It handles both D strings and C strings, so you can also pass null-terminated buffers directly.
+// NOTE(Kapendev): Might need checking. I replaced lines without thinking too much. Original code had bugs too btw.
 void mu_text(mu_Context* ctx, const(char)[] text) {
     mu_Font font = ctx.style.font;
     mu_Color color = ctx.style.colors[MU_COLOR_TEXT];
@@ -1095,14 +1123,14 @@ void mu_text(mu_Context* ctx, const(char)[] text) {
             end = p;
             do {
                 const(char)* word = p;
-                while (p < text.ptr + text.length && *p != ' ' && *p != '\n') { p += 1; }
-                w += ctx.text_width(font, word[0 .. p - word]); // NOTE(Kapendev): Original was `text_width(font, word, cast(int) (p - word)`.
+                while (p < text.ptr + text.length && *p && *p != ' ' && *p != '\n') { p += 1; }
+                w += ctx.text_width(font, word[0 .. p - word]);
                 if (w > r.w && end != start) { break; }
                 end = p++;
-            } while(end < text.ptr + text.length && *end != '\n');
-            mu_draw_text(ctx, font, start[0 .. end - start], mu_vec2(r.x, r.y), color); // NOTE(Kapendev): Original was `mu_draw_text(ctx, font, start, cast(int) (end - start), mu_vec2(r.x, r.y), color)`.
+            } while(end < text.ptr + text.length && *end && *end != '\n');
+            mu_draw_text(ctx, font, start[0 .. end - start], mu_vec2(r.x, r.y), color);
             p = end + 1;
-        } while(end < text.ptr + text.length);
+        } while(end < text.ptr + text.length && *end);
     }
     mu_layout_end_column(ctx);
 }
@@ -1164,6 +1192,7 @@ mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, bool* state) {
     return res;
 }
 
+// TODO(Kapendev): This should give you in some way the length of the string inside the buffer!
 mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_Rect r, mu_OptFlags opt) {
     mu_ResFlags res = 0;
     mu_update_control(ctx, id, r, opt | MU_OPT_HOLDFOCUS);
@@ -1205,7 +1234,7 @@ mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_R
     }
 
     /* draw */
-    size_t buflen = strlen(buf); // NOTE(Kapendev): Added this just to make the code work. This is needed because buf has a new size now.
+    size_t buflen = strlen(buf); // TODO(Kapendev): Can be removed. Added this just to make the code work. This is needed because buf has a new size now.
     mu_draw_control_frame(ctx, id, r, MU_COLOR_BASE, opt);
     if (ctx.focus == id) {
         mu_Color color = ctx.style.colors[MU_COLOR_TEXT];

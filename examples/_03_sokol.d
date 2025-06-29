@@ -1,5 +1,5 @@
 /// This example shows how to use microui with Sokol.
-/// It assumes you are using: https://github.com/kassane/sokol-d.
+/// It assumes you are using: https://github.com/kassane/sokol-d
 
 import microui;
 
@@ -142,9 +142,7 @@ void init() {
     r_init();
 
     // setup microui
-    mu_init(&state.mu_ctx);
-    state.mu_ctx.text_width = &text_width_cb;
-    state.mu_ctx.text_height = &text_height_cb;
+    mu_init_with_funcs(&state.mu_ctx, &text_width_cb, &text_height_cb);
 }
 
 extern(C)
