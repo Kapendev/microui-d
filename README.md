@@ -12,6 +12,7 @@ It's 90% the same library, adapted with D-specific improvements where appropriat
 * Easily extensible with custom controls
 * Optional helper modules for other libraries ([raylib](source/murl.d), [parin](source/mupr.d))
 * C interface for cross-language use
+* BetterC support.
 
 ## Hello World Example
 

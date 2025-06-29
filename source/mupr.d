@@ -126,8 +126,7 @@ private extern(C) nothrow @nogc {
         GenIndex data;
     }
 
-
-    ref PFont getFont(PFontId id);
+    ref PFont getFontData(PFontId id);
     int windowWidth();
     int windowHeight();
     Vec2 mouse();
@@ -144,25 +143,28 @@ private extern(C) nothrow @nogc {
 @trusted:
 
 // Temporary text measurement function for prototyping.
+nothrow @nogc
 private int mupr_temp_text_width_func(mu_Font font, const(char)[] str) {
     auto da = cast(PFontId*) font;
     return cast(int) measureTextSize(*da, str).x;
 }
 // Temporary text measurement function for prototyping.
+nothrow @nogc
 private int mupr_temp_text_height_func(mu_Font font) {
     auto da = cast(PFontId*) font;
-    auto data = cast(Font*) &getFont(*da);
+    auto data = cast(Font*) &getFontData(*da);
     return data.baseSize;
 }
 
 extern(C) @trusted:
 
 /// Initializes the microui context and sets temporary text size functions. Value `font` should be a `FontId*`.
+nothrow @nogc
 void mupr_init(mu_Context* ctx, mu_Font font = null) {
     mu_init_with_funcs(ctx, &mupr_temp_text_width_func, &mupr_temp_text_height_func, font ? font : ctx.style.font);
     auto da = cast(PFontId*) ctx.style.font;
     if (da) {
-        auto data = cast(Font*) &getFont(*da);
+        auto data = cast(Font*) &getFontData(*da);
         ctx.style.size = mu_vec2(data.baseSize * 6, data.baseSize);
         ctx.style.title_height = data.baseSize + 11;
         if (data.baseSize <= 16) {
@@ -180,6 +182,7 @@ void mupr_init(mu_Context* ctx, mu_Font font = null) {
 }
 
 /// Initializes the microui context and sets custom text size functions. Value `font` should be a `FontId*`.
+nothrow @nogc
 void mupr_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeightFunc height, mu_Font font = null) {
     mupr_init(ctx, font);
     ctx.text_width = width;
@@ -187,6 +190,7 @@ void mupr_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeight
 }
 
 /// Handles input events and updates the microui context accordingly.
+nothrow @nogc
 void mupr_handle_input(mu_Context* ctx) {
     enum scroll_speed = -30;
 

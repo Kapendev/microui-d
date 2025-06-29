@@ -77,11 +77,13 @@ private extern(C) nothrow @nogc {
 @trusted:
 
 // Temporary text measurement function for prototyping.
+nothrow @nogc
 private int murl_temp_text_width_func(mu_Font font, const(char)[] str) {
     auto data = cast(Font*) font;
     return cast(int) MeasureTextEx(*data, str.ptr, data.baseSize, 1).x;
 }
 // Temporary text measurement function for prototyping.
+nothrow @nogc
 private int murl_temp_text_height_func(mu_Font font) {
     auto data = cast(Font*) font;
     return data.baseSize;
@@ -90,6 +92,7 @@ private int murl_temp_text_height_func(mu_Font font) {
 extern(C) @trusted:
 
 /// Initializes the microui context and sets temporary text size functions. Value `font` should be a `Font*`.
+nothrow @nogc
 void murl_init(mu_Context* ctx, mu_Font font = null) {
     mu_init_with_funcs(ctx, &murl_temp_text_width_func, &murl_temp_text_height_func, font ? font : ctx.style.font);
     auto data = cast(Font*) ctx.style.font;
@@ -111,6 +114,7 @@ void murl_init(mu_Context* ctx, mu_Font font = null) {
 }
 
 /// Initializes the microui context and sets custom text size functions. Value `font` should be a `Font*`.
+nothrow @nogc
 void murl_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeightFunc height, mu_Font font = null) {
     murl_init(ctx, font);
     ctx.text_width = width;
@@ -118,6 +122,7 @@ void murl_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeight
 }
 
 /// Handles input events and updates the microui context accordingly.
+nothrow @nogc
 void murl_handle_input(mu_Context* ctx) {
     enum scroll_speed = -30;
 

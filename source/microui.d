@@ -259,17 +259,9 @@ struct mu_Rect {
 
     @safe nothrow @nogc pure:
 
-    mu_Rect expand(int n) {
-        return mu_expand_rect(this, n);
-    }
-
-    mu_Rect intersect(mu_Rect r2) {
-        return mu_intersect_rects(this, r2);
-    }
-
-    bool overlaps(mu_Vec2 p) {
-        return mu_rect_overlaps_vec2(this, p);
-    }
+    mu_Rect expand(int n)         => mu_expand_rect(this, n);
+    mu_Rect intersect(mu_Rect r2) => mu_intersect_rects(this, r2);
+    bool overlaps(mu_Vec2 p)      => mu_rect_overlaps_vec2(this, p);
 }
 
 /// A 2D vector using ints.
@@ -839,35 +831,42 @@ void mu_pool_update(mu_Context* ctx, mu_PoolItem* items, size_t idx) {
 ** input handlers
 **============================================================================*/
 
+nothrow @nogc
 void mu_input_mousemove(mu_Context* ctx, int x, int y) {
     ctx.mouse_pos = mu_vec2(x, y);
 }
 
+nothrow @nogc
 void mu_input_mousedown(mu_Context* ctx, int x, int y, mu_MouseFlags btn) {
     mu_input_mousemove(ctx, x, y);
     ctx.mouse_down |= btn;
     ctx.mouse_pressed |= btn;
 }
 
+nothrow @nogc
 void mu_input_mouseup(mu_Context* ctx, int x, int y, mu_MouseFlags btn) {
     mu_input_mousemove(ctx, x, y);
     ctx.mouse_down &= ~btn;
 }
 
+nothrow @nogc
 void mu_input_scroll(mu_Context* ctx, int x, int y) {
     ctx.scroll_delta.x += x;
     ctx.scroll_delta.y += y;
 }
 
+nothrow @nogc
 void mu_input_keydown(mu_Context* ctx, int key) {
     ctx.key_pressed |= key;
     ctx.key_down |= key;
 }
 
+nothrow @nogc
 void mu_input_keyup(mu_Context* ctx, int key) {
     ctx.key_down &= ~key;
 }
 
+nothrow @nogc
 void mu_input_text(mu_Context* ctx, const(char)[] text) {
     size_t len = strlen(ctx.input_text.ptr);
     size_t size = text.length;
