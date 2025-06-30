@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 // Email: alexandroskapretsos@gmail.com
 // Project: https://github.com/Kapendev/microui-d
-// Version: v0.0.1
+// Version: v0.0.2
 // ---
 
 // TODO: work on attributes maybe.
@@ -55,9 +55,7 @@ private extern(C) nothrow @nogc {
         GlyphInfo* glyphs;
     }
 
-    size_t strlen(const(char)* str);
     void* memcpy(void* dest, const(void)* src, size_t count);
-
     Vector2 MeasureTextEx(Font font, const(char)* text, float fontSize, float spacing);
     Font GetFontDefault();
     Vector2 GetMouseWheelMoveV();
@@ -239,7 +237,7 @@ void mupr_draw(mu_Context* ctx) {
                 text_options.color = *(cast(Rgba*) (&cmd.text.color));
                 drawText(
                     *text_font,
-                    cmd.text.str.ptr[0 .. strlen(cmd.text.str.ptr)],
+                    cmd.text.str.ptr[0 .. cmd.text.len],
                     Vec2(cmd.text.pos.x, cmd.text.pos.y),
                     text_options,
                 );
@@ -284,4 +282,16 @@ void mupr_draw(mu_Context* ctx) {
         }
     }
     EndScissorMode();
+}
+
+/// Begins input handling and UI processing.
+void mupr_begin(mu_Context* ctx) {
+    mupr_handle_input(ctx);
+    mu_begin(ctx);
+}
+
+/// Ends UI processing and performs drawing.
+void mupr_end(mu_Context* ctx) {
+    mu_end(ctx);
+    mupr_draw(ctx);
 }

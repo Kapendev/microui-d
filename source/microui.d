@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 // Email: alexandroskapretsos@gmail.com
 // Project: https://github.com/Kapendev/microui-d
-// Version: v0.0.1
+// Version: v0.0.2
 // ---
 
 /*
@@ -45,8 +45,6 @@ private extern(C) nothrow @nogc {
     size_t strlen(const(char)* str);
 }
 
-static assert(mu_Command.sizeof <= MU_STR_SIZE, "Type `mu_Command` must fit within `MU_STR_SIZE` bytes (used for embedded strings).");
-
 alias mu_TextWidthFunc = int function(mu_Font font, const(char)[] str); /// Used for getting the width of the text.
 alias mu_TextHeightFunc = int function(mu_Font font);                   /// Used for getting the height of the text.
 
@@ -54,37 +52,39 @@ alias mu_Real = float; /// The floating-point type of microui.
 alias mu_Id   = uint;  /// The control ID type of microui.
 alias mu_Font = void*; /// The font type of microui.
 
-alias mu_ClipEnum    = int;  /// The type of `MU_CLIP_*` enums.
-alias mu_CommandEnum = int;  /// The type of `MU_COMMAND_*` enums.
-alias mu_ColorEnum   = int;  /// The type of `MU_COLOR_*` enums.
-alias mu_IconEnum    = int;  /// The type of `MU_ICON_*` enums.
+alias mu_ClipEnum    = int; /// The type of `MU_CLIP_*` enums.
+alias mu_CommandEnum = int; /// The type of `MU_COMMAND_*` enums.
+alias mu_ColorEnum   = int; /// The type of `MU_COLOR_*` enums.
+alias mu_IconEnum    = int; /// The type of `MU_ICON_*` enums.
 
-alias mu_ResFlags   = int;  /// The type of `MU_RES_*` enums.
-alias mu_OptFlags   = int;  /// The type of `MU_OPT_*` enums.
-alias mu_MouseFlags = int;  /// The type of `MU_MOUSE_*` enums.
-alias mu_KeyFlags   = int;  /// The type of `MU_KEY_*` enums.
+alias mu_ResFlags   = int; /// The type of `MU_RES_*` enums.
+alias mu_OptFlags   = int; /// The type of `MU_OPT_*` enums.
+alias mu_MouseFlags = int; /// The type of `MU_MOUSE_*` enums.
+alias mu_KeyFlags   = int; /// The type of `MU_KEY_*` enums.
 
 private enum RELATIVE = 1; // The relative layout type.
 private enum ABSOLUTE = 2; // The absolute layout type.
-
 private enum mu_unclipped_rect = mu_Rect(0, 0, 0x1000000, 0x1000000);
 
-enum MU_D_VERSION           = "v0.0.1";          /// Version of the D language rewrite.
-enum MU_VERSION             = "2.02";            /// Version of the original microui C library.
-enum MU_COMMANDLIST_SIZE    = 256 * MU_STR_SIZE; /// Size of the command list, in bytes. Commands include extra space for strings. See `MU_STR_SIZE`.
-enum MU_ROOTLIST_SIZE       = 32;                /// Maximum number of root containers (windows).
-enum MU_CONTAINERSTACK_SIZE = 32;                /// Max depth for container stack.
-enum MU_CLIPSTACK_SIZE      = 32;                /// Max depth for clipping region stack.
-enum MU_IDSTACK_SIZE        = 32;                /// Max depth for ID stack.
-enum MU_LAYOUTSTACK_SIZE    = 16;                /// Max depth for layout stack.
-enum MU_CONTAINERPOOL_SIZE  = 48;                /// Number of reusable containers.
-enum MU_TREENODEPOOL_SIZE   = 48;                /// Number of reusable tree nodes.
-enum MU_INPUTTEXT_SIZE      = 1024;              /// Maximum length of input text buffers.
-enum MU_STR_SIZE            = 1024;              /// Maximum length of command strings.
-enum MU_MAX_WIDTHS          = 16;                /// Maximum number of columns per layout row.
-enum MU_REAL_FMT            = "%.3g";            /// Format string used for real numbers.
-enum MU_SLIDER_FMT          = "%.2f";            /// Format string used for slider labels.
-enum MU_MAX_FMT             = 127;               /// Max length of any formatted string.
+enum MU_D_VERSION           = "v0.0.1";              /// Version of the D language rewrite.
+enum MU_VERSION             = "2.02";                /// Version of the original microui C library.
+enum MU_COMMAND_SIZE        = 1024;                  /// Size of the command, in bytes. Commands include extra space for strings. See `MU_STR_SIZE`.
+enum MU_COMMANDLIST_SIZE    = 256 * MU_COMMAND_SIZE; /// Size of the command list, in bytes. Commands include extra space for strings. See `MU_STR_SIZE`.
+enum MU_ROOTLIST_SIZE       = 32;                    /// Maximum number of root containers (windows).
+enum MU_CONTAINERSTACK_SIZE = 32;                    /// Max depth for container stack.
+enum MU_CLIPSTACK_SIZE      = 32;                    /// Max depth for clipping region stack.
+enum MU_IDSTACK_SIZE        = 32;                    /// Max depth for ID stack.
+enum MU_LAYOUTSTACK_SIZE    = 16;                    /// Max depth for layout stack.
+enum MU_CONTAINERPOOL_SIZE  = 48;                    /// Number of reusable containers.
+enum MU_TREENODEPOOL_SIZE   = 48;                    /// Number of reusable tree nodes.
+enum MU_INPUTTEXT_SIZE      = 1024;                  /// Maximum length of input text buffers.
+enum MU_MAX_WIDTHS          = 16;                    /// Maximum number of columns per layout row.
+enum MU_REAL_FMT            = "%.3g";                /// Format string used for real numbers.
+enum MU_SLIDER_FMT          = "%.2f";                /// Format string used for slider labels.
+enum MU_MAX_FMT             = 127;                   /// Max length of any formatted string.
+
+enum MU_STR_SIZE = (cast(int) MU_COMMAND_SIZE) - (cast(int) mu_TextCommand.sizeof) + 1; /// Maximum length of command strings.
+static assert(MU_STR_SIZE > 0, "Type `mu_TextCommand` must fit within `MU_COMMAND_SIZE` bytes (used for embedded strings).");
 
 enum : mu_ClipEnum {
     MU_CLIP_NONE = 0, /// No clipping.
@@ -280,7 +280,7 @@ struct mu_ClipCommand { mu_BaseCommand base; mu_Rect rect; }
 /// Command to draw a rectangle with a given color.
 struct mu_RectCommand { mu_BaseCommand base; mu_Rect rect; mu_Color color; }
 /// Command to render text at a given position with a font and color. The text is a null-terminated string. Use `str.ptr` to access it.
-struct mu_TextCommand { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color; char[1] str; }
+struct mu_TextCommand { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color; int len; char[1] str; }
 /// Command to draw an icon inside a rectangle with a given color.
 struct mu_IconCommand { mu_BaseCommand base; mu_Rect rect; mu_IconEnum id; mu_Color color; }
 
@@ -572,13 +572,13 @@ private void end_root_container(mu_Context* ctx) {
 }
 
 // The microui assert function.
-@safe nothrow @nogc pure
+nothrow @nogc pure
 private void mu_expect(bool x, const(char)[] message = "Fatal microui error.") => assert(x, message);
 // Temporary text measurement function for prototyping.
-@safe nothrow @nogc pure
+nothrow @nogc pure
 private int mu_temp_text_width_func(mu_Font font, const(char)[] str) => 200;
 // Temporary text measurement function for prototyping.
-@safe nothrow @nogc pure
+nothrow @nogc pure
 private int mu_temp_text_height_func(mu_Font font) => 20;
 
 T mu_min(T)(T a, T b)        => ((a) < (b) ? (a) : (b));
@@ -803,7 +803,8 @@ void mu_bring_to_front(mu_Context* ctx, mu_Container* cnt) {
 **============================================================================*/
 
 int mu_pool_init(mu_Context* ctx, mu_PoolItem* items, size_t len, mu_Id id) {
-    int n = -1, f = ctx.frame;
+    int n = -1;
+    int f = ctx.frame;
     foreach (i; 0 .. len) {
         if (items[i].last_update < f) {
             f = items[i].last_update;
@@ -870,9 +871,9 @@ nothrow @nogc
 void mu_input_text(mu_Context* ctx, const(char)[] text) {
     size_t len = strlen(ctx.input_text.ptr);
     size_t size = text.length;
-    mu_expect(len + size <= ctx.input_text.sizeof);
+    mu_expect(len + size < ctx.input_text.sizeof);
     memcpy(ctx.input_text.ptr + len, text.ptr, size);
-    // NOTE(Kapendev): Added this to make it work with slices.
+    // Added this to make it work with slices.
     ctx.input_text[len + size] = '\0';
 }
 
@@ -933,9 +934,10 @@ void mu_draw_text(mu_Context* ctx, mu_Font font, const(char)[] str, mu_Vec2 pos,
     if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
     /* add command */
     cmd = mu_push_command(ctx, MU_COMMAND_TEXT, mu_TextCommand.sizeof + str.length);
-    mu_expect(str.length < MU_STR_SIZE); // TODO(Kapendev): Not the best check. It's not that bad, but maybe it could be safer.
+    mu_expect(str.length < MU_STR_SIZE, "String is too big. See `MU_STR_SIZE`.");
     memcpy(cmd.text.str.ptr, str.ptr, str.length);
     cmd.text.str.ptr[str.length] = '\0';
+    cmd.text.len = cast(int) str.length;
     cmd.text.pos = pos;
     cmd.text.color = color;
     cmd.text.font = font;
@@ -1058,11 +1060,9 @@ void mu_draw_control_frame(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_ColorEnum
     ctx.draw_frame(ctx, rect, colorid);
 }
 
-// TODO(Kapendev): It's too easy to pass a C string buffer here. It can handle it, but `text_width` and `text_height` callbacks might not. Think about it.
 void mu_draw_control_text(mu_Context* ctx, const(char)[] str, mu_Rect rect, mu_ColorEnum colorid, mu_OptFlags opt) {
     mu_Vec2 pos;
     mu_Font font = ctx.style.font;
-    // NOTE(Kapendev): Original was `ctx.text_width(font, str, -1)`. WTF IS LENGTH -1? Now the `int` type makes sense. It's used to call `strlen` for you.
     int tw = ctx.text_width(font, str);
     mu_push_clip_rect(ctx, rect);
     pos.y = rect.y + (rect.h - ctx.text_height(font)) / 2;
@@ -1191,37 +1191,37 @@ mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, bool* state) {
     return res;
 }
 
-// TODO(Kapendev): This should give you in some way the length of the string inside the buffer!
-mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_Rect r, mu_OptFlags opt) {
+mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, size_t bufsz, mu_Id id, mu_Rect r, mu_OptFlags opt, size_t* newlen = null) {
     mu_ResFlags res = 0;
     mu_update_control(ctx, id, r, opt | MU_OPT_HOLDFOCUS);
 
+    size_t buflen = strlen(buf);
     if (ctx.focus == id) {
         /* handle text input */
-        size_t len = strlen(buf);
-        size_t n = mu_min(bufsz - len - 1, strlen(ctx.input_text.ptr));
+        size_t n = mu_min(bufsz - buflen - 1, strlen(ctx.input_text.ptr));
         if (n > 0) {
-            memcpy(buf + len, ctx.input_text.ptr, n);
-            len += n;
-            buf[len] = '\0';
+            memcpy(buf + buflen, ctx.input_text.ptr, n);
+            buflen += n;
+            buf[buflen] = '\0';
             res |= MU_RES_CHANGE;
         }
         /* handle backspace */
-        if (ctx.key_pressed & MU_KEY_BACKSPACE && len > 0) {
+        if (ctx.key_pressed & MU_KEY_BACKSPACE && buflen > 0) {
             if (ctx.key_down & MU_KEY_CTRL) {
-                buf[0] = '\0';
-            } else if (ctx.key_down & MU_KEY_ALT && len > 0) {
-                while (buf[len - 1] == ' ') { len -= 1; }
-                while (len > 0) {
+                buflen = 0;
+                buf[buflen] = '\0';
+            } else if (ctx.key_down & MU_KEY_ALT && buflen > 0) {
+                while (buf[buflen - 1] == ' ') { buflen -= 1; }
+                while (buflen > 0) {
                     /* skip utf-8 continuation bytes */
-                    while ((buf[--len] & 0xc0) == 0x80 && len > 0) {}
-                    if (len == 0 || buf[len - 1] == ' ') break;
+                    while ((buf[--buflen] & 0xc0) == 0x80 && buflen > 0) {}
+                    if (buflen == 0 || buf[buflen - 1] == ' ') break;
                 }
-                buf[len] = '\0';
-            } else if (len > 0) {
+                buf[buflen] = '\0';
+            } else if (buflen > 0) {
                 /* skip utf-8 continuation bytes */
-                while ((buf[--len] & 0xc0) == 0x80 && len > 0) {}
-                buf[len] = '\0';
+                while ((buf[--buflen] & 0xc0) == 0x80 && buflen > 0) {}
+                buf[buflen] = '\0';
             }
             res |= MU_RES_CHANGE;
         }
@@ -1233,34 +1233,34 @@ mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, int bufsz, mu_Id id, mu_R
     }
 
     /* draw */
-    size_t buflen = strlen(buf); // TODO(Kapendev): Can be removed. Added this just to make the code work. This is needed because buf has a new size now.
     mu_draw_control_frame(ctx, id, r, MU_COLOR_BASE, opt);
     if (ctx.focus == id) {
         mu_Color color = ctx.style.colors[MU_COLOR_TEXT];
         mu_Font font = ctx.style.font;
-        int textw = ctx.text_width(font, buf[0 .. buflen]); // NOTE(Kapendev): Original was `ctx.text_width(font, buf, -1)`.
+        int textw = ctx.text_width(font, buf[0 .. buflen]);
         int texth = ctx.text_height(font);
         int ofx = r.w - ctx.style.padding - textw - 1;
         int textx = r.x + mu_min(ofx, ctx.style.padding);
         int texty = r.y + (r.h - texth) / 2;
         mu_push_clip_rect(ctx, r);
-        mu_draw_text(ctx, font, buf[0 .. buflen], mu_vec2(textx, texty), color); // NOTE(Kapendev): Original has the same -1 value as the above.
+        mu_draw_text(ctx, font, buf[0 .. buflen], mu_vec2(textx, texty), color);
         mu_draw_rect(ctx, mu_rect(textx + textw, texty, 1, texth), color);
         mu_pop_clip_rect(ctx);
     } else {
         mu_draw_control_text(ctx, buf[0 .. buflen], r, MU_COLOR_TEXT, opt);
     }
+    if (newlen) *newlen = buflen;
     return res;
 }
 
-mu_ResFlags mu_textbox_ex(mu_Context* ctx, char* buf, int bufsz, mu_OptFlags opt) {
+mu_ResFlags mu_textbox_ex(mu_Context* ctx, char* buf, size_t bufsz, mu_OptFlags opt, size_t* newlen = null) {
     mu_Id id = mu_get_id(ctx, &buf, buf.sizeof);
     mu_Rect r = mu_layout_next(ctx);
-    return mu_textbox_raw(ctx, buf, bufsz, id, r, opt);
+    return mu_textbox_raw(ctx, buf, bufsz, id, r, opt, newlen);
 }
 
-mu_ResFlags mu_textbox(mu_Context* ctx, char* buf, int bufsz) {
-    return mu_textbox_ex(ctx, buf, bufsz, 0);
+mu_ResFlags mu_textbox(mu_Context* ctx, char* buf, size_t bufsz, size_t* newlen = null) {
+    return mu_textbox_ex(ctx, buf, bufsz, 0, newlen);
 }
 
 mu_ResFlags mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {
