@@ -31,6 +31,8 @@
 // TODO: Add more doc comments.
 // TODO: work on attributes maybe.
 // TODO: Maybe better UI theming? We could add more things in the style. It should work in a way that does not break the old way of doing things.
+// TODO: Add support for new keys to murl and mupr.
+// TODO: Maybe try to add some of the new keys somewhere?
 
 /// A tiny immediate-mode UI library.
 module microui;
@@ -132,26 +134,27 @@ enum : mu_IconEnum {
 
 enum : mu_ResFlags {
     MU_RES_NONE   = 0,        /// No result.
-    MU_RES_ACTIVE = (1 << 0), /// Control is active.
-    MU_RES_SUBMIT = (1 << 1), /// Control triggered an action.
-    MU_RES_CHANGE = (1 << 2), /// Control value changed.
+    MU_RES_ACTIVE = (1 << 0), /// Control is active (e.g., active window).
+    MU_RES_SUBMIT = (1 << 1), /// Control value submitted (e.g., clicked button).
+    MU_RES_CHANGE = (1 << 2), /// Control value changed (e.g., modified text input).
 }
 
 enum : mu_OptFlags {
-    MU_OPT_NONE        = 0,         /// No options.
-    MU_OPT_ALIGNCENTER = (1 << 0),  /// Center-align control content.
-    MU_OPT_ALIGNRIGHT  = (1 << 1),  /// Right-align control content.
-    MU_OPT_NOINTERACT  = (1 << 2),  /// Disable interaction.
-    MU_OPT_NOFRAME     = (1 << 3),  /// Draw control without a frame.
-    MU_OPT_NORESIZE    = (1 << 4),  /// Disable resizing for windows.
-    MU_OPT_NOSCROLL    = (1 << 5),  /// Disable scrolling for containers.
-    MU_OPT_NOCLOSE     = (1 << 6),  /// Remove close button from window.
-    MU_OPT_NOTITLE     = (1 << 7),  /// Remove title bar from window.
-    MU_OPT_HOLDFOCUS   = (1 << 8),  /// Keep control focused after click.
-    MU_OPT_AUTOSIZE    = (1 << 9),  /// Automatically size to content.
-    MU_OPT_POPUP       = (1 << 10), /// Mark as popup (draws on top).
-    MU_OPT_CLOSED      = (1 << 11), /// Window starts closed.
-    MU_OPT_EXPANDED    = (1 << 12), /// Window starts expanded.
+    MU_OPT_NONE         = 0,         /// No options.
+    MU_OPT_ALIGNCENTER  = (1 << 0),  /// Center-align control content.
+    MU_OPT_ALIGNRIGHT   = (1 << 1),  /// Right-align control content.
+    MU_OPT_NOINTERACT   = (1 << 2),  /// Disable interaction.
+    MU_OPT_NOFRAME      = (1 << 3),  /// Draw control without a frame.
+    MU_OPT_NORESIZE     = (1 << 4),  /// Disable resizing for windows.
+    MU_OPT_NOSCROLL     = (1 << 5),  /// Disable scrolling for containers.
+    MU_OPT_NOCLOSE      = (1 << 6),  /// Remove close button from window.
+    MU_OPT_NOTITLE      = (1 << 7),  /// Remove title bar from window.
+    MU_OPT_HOLDFOCUS    = (1 << 8),  /// Keep control focused after click.
+    MU_OPT_AUTOSIZE     = (1 << 9),  /// Automatically size to content.
+    MU_OPT_POPUP        = (1 << 10), /// Mark as popup (draws on top).
+    MU_OPT_CLOSED       = (1 << 11), /// Window starts closed.
+    MU_OPT_EXPANDED     = (1 << 12), /// Window starts expanded.
+    MU_OPT_DEFAULTFOCUS = (1 << 13), /// Keep focus when no other control is focused.
 }
 
 enum : mu_MouseFlags {
@@ -163,11 +166,16 @@ enum : mu_MouseFlags {
 
 enum : mu_KeyFlags {
     MU_KEY_NONE      = 0,        /// No key.
-    MU_KEY_SHIFT     = (1 << 0), /// Shift key pressed.
-    MU_KEY_CTRL      = (1 << 1), /// Control key pressed.
-    MU_KEY_ALT       = (1 << 2), /// Alt key pressed.
-    MU_KEY_BACKSPACE = (1 << 3), /// Backspace key pressed.
-    MU_KEY_RETURN    = (1 << 4), /// Return key pressed.
+    MU_KEY_SHIFT     = (1 << 0), /// Shift key down.
+    MU_KEY_CTRL      = (1 << 1), /// Control key down.
+    MU_KEY_ALT       = (1 << 2), /// Alt key down.
+    MU_KEY_BACKSPACE = (1 << 3), /// Backspace key down.
+    MU_KEY_RETURN    = (1 << 4), /// Return key down.
+    MU_KEY_TAB       = (1 << 5), /// Tab key down.
+    MU_KEY_LEFT      = (1 << 6), /// Left key down.
+    MU_KEY_RIGHT     = (1 << 7), /// Right key down.
+    MU_KEY_UP        = (1 << 8), /// Up key down.
+    MU_KEY_DOWN      = (1 << 9), /// Down key down.
 }
 
 /// A static array allocated on the stack.
@@ -322,7 +330,7 @@ struct mu_Container {
     mu_Vec2 content_size;
     mu_Vec2 scroll;
     int zindex;
-    int open;
+    bool open;
 }
 
 /// UI style settings including font, sizes, spacing, and colors.
@@ -353,7 +361,7 @@ struct mu_Context {
     mu_Id last_id;
     mu_Rect last_rect;
     int last_zindex;
-    int updated_focus;
+    bool updated_focus;
     int frame;
     mu_Container* hover_root;
     mu_Container* next_hover_root;
@@ -378,10 +386,10 @@ struct mu_Context {
     mu_Vec2 last_mouse_pos;
     mu_Vec2 mouse_delta;
     mu_Vec2 scroll_delta;
-    int mouse_down;
-    int mouse_pressed;
-    int key_down;
-    int key_pressed;
+    mu_MouseFlags mouse_down;
+    mu_MouseFlags mouse_pressed;
+    mu_KeyFlags key_down;
+    mu_KeyFlags key_pressed;
     char[MU_INPUTTEXT_SIZE] input_text;
     char[] input_text_slice;
 }
@@ -420,6 +428,7 @@ private void push_layout(mu_Context* ctx, mu_Rect body, mu_Vec2 scroll) {
 }
 
 private mu_Layout* get_layout(mu_Context* ctx) {
+    mu_expect(ctx.layout_stack.idx != 0, "No layout available, or attempted to add control outside of a window.");
     return &ctx.layout_stack.items[ctx.layout_stack.idx - 1];
 }
 
@@ -434,6 +443,7 @@ private void pop_container(mu_Context* ctx) {
     mu_pop_id(ctx);
 }
 
+// NOTE(Kapendev): `MU_OPT_CLOSED` is used to not create a new container when getting???
 private mu_Container* get_container(mu_Context* ctx, mu_Id id, mu_OptFlags opt) {
     mu_Container* cnt;
     /* try to get existing container from pool */
@@ -449,7 +459,7 @@ private mu_Container* get_container(mu_Context* ctx, mu_Id id, mu_OptFlags opt) 
     idx = mu_pool_init(ctx, ctx.container_pool.ptr, MU_CONTAINERPOOL_SIZE, id);
     cnt = &ctx.containers[idx];
     memset(cnt, 0, (*cnt).sizeof);
-    cnt.open = 1;
+    cnt.open = true;
     mu_bring_to_front(ctx, cnt);
     return cnt;
 }
@@ -698,7 +708,7 @@ void mu_end(mu_Context *ctx) {
 
     /* unset focus if focus id was not touched this frame */
     if (!ctx.updated_focus) { ctx.focus = 0; }
-    ctx.updated_focus = 0;
+    ctx.updated_focus = false;
 
     /* bring hover root to front if mouse was pressed */
     if (ctx.mouse_pressed && ctx.next_hover_root && ctx.next_hover_root.zindex < ctx.last_zindex && ctx.next_hover_root.zindex >= 0) {
@@ -738,7 +748,7 @@ void mu_end(mu_Context *ctx) {
 
 void mu_set_focus(mu_Context* ctx, mu_Id id) {
     ctx.focus = id;
-    ctx.updated_focus = 1;
+    ctx.updated_focus = true;
 }
 
 mu_Id mu_get_id(mu_Context *ctx, const(void)* data, size_t size) {
@@ -861,13 +871,13 @@ void mu_input_scroll(mu_Context* ctx, int x, int y) {
 }
 
 nothrow @nogc
-void mu_input_keydown(mu_Context* ctx, int key) {
+void mu_input_keydown(mu_Context* ctx, mu_KeyFlags key) {
     ctx.key_pressed |= key;
     ctx.key_down |= key;
 }
 
 nothrow @nogc
-void mu_input_keyup(mu_Context* ctx, int key) {
+void mu_input_keyup(mu_Context* ctx, mu_KeyFlags key) {
     ctx.key_down &= ~key;
 }
 
@@ -1088,11 +1098,14 @@ bool mu_mouse_over(mu_Context* ctx, mu_Rect rect) {
 
 void mu_update_control(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_OptFlags opt) {
     bool mouseover = mu_mouse_over(ctx, rect);
-    if (ctx.focus == id) { ctx.updated_focus = 1; }
+
+    if (ctx.focus == 0 && opt & MU_OPT_DEFAULTFOCUS) { mu_set_focus(ctx, id); }
+
+    if (ctx.focus == id) { ctx.updated_focus = true; }
     if (opt & MU_OPT_NOINTERACT) { return; }
     if (mouseover && !ctx.mouse_down) { ctx.hover = id; }
     if (ctx.focus == id) {
-        if (ctx.mouse_pressed && !mouseover) { mu_set_focus(ctx, 0); }
+        if (ctx.mouse_pressed && !mouseover && ~opt & MU_OPT_DEFAULTFOCUS) { mu_set_focus(ctx, 0); }
         if (!ctx.mouse_down && ~opt & MU_OPT_HOLDFOCUS) { mu_set_focus(ctx, 0); }
     }
     if (ctx.hover == id) {
@@ -1197,7 +1210,7 @@ mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, bool* state) {
 }
 
 mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, size_t bufsz, mu_Id id, mu_Rect r, mu_OptFlags opt, size_t* newlen = null) {
-    mu_ResFlags res = 0;
+    mu_ResFlags res;
     mu_update_control(ctx, id, r, opt | MU_OPT_HOLDFOCUS);
 
     size_t buflen = strlen(buf);
@@ -1400,22 +1413,28 @@ void scrollbar(const(char)[] x, const(char)[] y, const(char)[] w, const(char)[] 
     /* only add scrollbar if content size is larger than body */
     int maxscroll = cs.y - b.h;
     if (maxscroll > 0 && b.h > 0) {
-        mu_Rect base; mu_Rect thumb;
+        mu_Rect base, thumb;
         mu_Id id = mu_get_id_str(ctx, "!scrollbar" ~ y); // NOTE(Kapendev): In C it was something like `#y`.
         /* get sizing/positioning */
         base = *b;
         base.x = b.x + b.w;
         base.w = ctx.style.scrollbar_size;
+        thumb = base;
+        thumb.h = mu_max(ctx.style.thumb_size, base.h * b.h / cs.y);
+        thumb.y += cnt.scroll.y * (base.h - thumb.h) / maxscroll;
         /* handle input */
         mu_update_control(ctx, id, base, 0);
-        if (ctx.focus == id && ctx.mouse_down == MU_MOUSE_LEFT) { cnt.scroll.y += ctx.mouse_delta.y * cs.y / base.h; }
+        if (ctx.focus == id && ctx.mouse_down == MU_MOUSE_LEFT) {
+            if (ctx.mouse_pressed == MU_MOUSE_LEFT) {
+                cnt.scroll.y = ((ctx.mouse_pos.y - base.y - thumb.h / 2) * maxscroll) / (base.h - thumb.h);
+            } else {
+                cnt.scroll.y += ctx.mouse_delta.y * cs.y / base.h;
+            }
+        }
         /* clamp scroll to limits */
         cnt.scroll.y = mu_clamp(cnt.scroll.y, 0, maxscroll);
         /* draw base and thumb */
         ctx.draw_frame(ctx, base, MU_COLOR_SCROLLBASE);
-        thumb = base;
-        thumb.h = mu_max(ctx.style.thumb_size, base.h * b.h / cs.y);
-        thumb.y += cnt.scroll.y * (base.h - thumb.h) / maxscroll;
         ctx.draw_frame(ctx, thumb, MU_COLOR_SCROLLTHUMB);
         /* set this as the scroll_target (will get scrolled on mousewheel) */
         /* if the mouse is over it */
@@ -1429,7 +1448,7 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
     mu_Rect body;
     mu_Id id = mu_get_id_str(ctx, title);
     mu_Container* cnt = get_container(ctx, id, opt);
-    if (!cnt || !cnt.open) { return 0; }
+    if (!cnt || !cnt.open) { return MU_RES_NONE; }
     ctx.id_stack.push(id);
 
     if (cnt.rect.w == 0) { cnt.rect = rect; }
@@ -1465,7 +1484,7 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
             tr.w -= r.w;
             mu_draw_icon(ctx, MU_ICON_CLOSE, r, ctx.style.colors[MU_COLOR_TITLETEXT]);
             mu_update_control(ctx, id2, r, opt);
-            if (ctx.mouse_pressed == MU_MOUSE_LEFT && id2 == ctx.focus) { cnt.open = 0; }
+            if (ctx.mouse_pressed == MU_MOUSE_LEFT && id2 == ctx.focus) { cnt.open = false; }
         }
     }
 
@@ -1489,7 +1508,7 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
         cnt.rect.h = cnt.content_size.y + (cnt.rect.h - r.h);
     }
     /* close if this is a popup window and elsewhere was clicked */
-    if (opt & MU_OPT_POPUP && ctx.mouse_pressed && ctx.hover_root != cnt) { cnt.open = 0; }
+    if (opt & MU_OPT_POPUP && ctx.mouse_pressed && ctx.hover_root != cnt) { cnt.open = false; }
     mu_push_clip_rect(ctx, cnt.body);
     return MU_RES_ACTIVE;
 }
@@ -1509,7 +1528,7 @@ void mu_open_popup(mu_Context* ctx, const(char)[] name) {
     ctx.hover_root = ctx.next_hover_root = cnt;
     /* position at mouse cursor, open and bring-to-front */
     cnt.rect = mu_rect(ctx.mouse_pos.x, ctx.mouse_pos.y, 1, 1);
-    cnt.open = 1;
+    cnt.open = true;
     mu_bring_to_front(ctx, cnt);
 }
 
