@@ -32,6 +32,7 @@ mu_ResFlags mu_dmenu(mu_Context* ctx, const(const(char)[][]) items, mu_Rect rect
             mu_layout_row(ctx, 0, -1);
         }
         auto textbox_res = mu_textbox_exv(ctx, buffer, MU_OPT_DEFAULTFOCUS, &textbox_length);
+        if (textbox_res & MU_RES_CHANGE) cnt.scroll.y = 0;
         auto input = buffer[0 .. textbox_length];
         auto pick = -1;
         auto first = -1;

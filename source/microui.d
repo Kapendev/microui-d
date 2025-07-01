@@ -31,8 +31,6 @@
 // TODO: Add more doc comments.
 // TODO: work on attributes maybe.
 // TODO: Maybe better UI theming? We could add more things in the style. It should work in a way that does not break the old way of doing things.
-// TODO: Add support for new keys to murl and mupr.
-// TODO: Maybe try to add some of the new keys somewhere?
 
 /// A tiny immediate-mode UI library.
 module microui;
@@ -165,17 +163,21 @@ enum : mu_MouseFlags {
 }
 
 enum : mu_KeyFlags {
-    MU_KEY_NONE      = 0,        /// No key.
-    MU_KEY_SHIFT     = (1 << 0), /// Shift key down.
-    MU_KEY_CTRL      = (1 << 1), /// Control key down.
-    MU_KEY_ALT       = (1 << 2), /// Alt key down.
-    MU_KEY_BACKSPACE = (1 << 3), /// Backspace key down.
-    MU_KEY_RETURN    = (1 << 4), /// Return key down.
-    MU_KEY_TAB       = (1 << 5), /// Tab key down.
-    MU_KEY_LEFT      = (1 << 6), /// Left key down.
-    MU_KEY_RIGHT     = (1 << 7), /// Right key down.
-    MU_KEY_UP        = (1 << 8), /// Up key down.
-    MU_KEY_DOWN      = (1 << 9), /// Down key down.
+    MU_KEY_NONE      = 0,         /// No key.
+    MU_KEY_SHIFT     = (1 << 0),  /// Shift key down.
+    MU_KEY_CTRL      = (1 << 1),  /// Control key down.
+    MU_KEY_ALT       = (1 << 2),  /// Alt key down.
+    MU_KEY_BACKSPACE = (1 << 3),  /// Backspace key down.
+    MU_KEY_RETURN    = (1 << 4),  /// Return key down.
+    MU_KEY_TAB       = (1 << 5),  /// Tab key down.
+    MU_KEY_LEFT      = (1 << 6),  /// Left key down.
+    MU_KEY_RIGHT     = (1 << 7),  /// Right key down.
+    MU_KEY_UP        = (1 << 8),  /// Up key down.
+    MU_KEY_DOWN      = (1 << 9),  /// Down key down.
+    MU_KEY_HOME      = (1 << 10), /// Down key home.
+    MU_KEY_END       = (1 << 11), /// Down key end.
+    MU_KEY_PAGEUP    = (1 << 12), /// Down key page up.
+    MU_KEY_PAGEDOWN  = (1 << 13), /// Down key page down.
 }
 
 /// A static array allocated on the stack.
@@ -342,6 +344,7 @@ struct mu_Style {
     int indent;                               /// The indent of UI controls.
     int title_height;                         /// The height of the window title bar.
     int scrollbar_size;                       /// The size of the scrollbar.
+    int scrollbar_speed;                      /// The speed of the scrollbar.
     int thumb_size;                           /// The size of the thumb.
     int control_border_size;                  /// The size of the border.
     mu_Array!(mu_Color, MU_COLOR_MAX) colors; /// The array of colors used in the UI.
@@ -644,8 +647,8 @@ void mu_init(mu_Context* ctx, mu_Font font = null) {
     ctx._style = mu_Style(
         /* font | size | padding | spacing | indent */
         null, mu_Vec2(68, 10), 5, 4, 24,
-        /* title_height | scrollbar_size | thumb_size | control_border_size */
-        24, 12, 8, 1,
+        /* title_height | scrollbar_size | scrollbar_speed | thumb_size | control_border_size */
+        24, 12, 30, 8, 1,
         mu_Array!(mu_Color, 14)(
             mu_Color(230, 230, 230, 255), /* MU_COLOR_TEXT */
             mu_Color(25,  25,  25,  255), /* MU_COLOR_BORDER */
@@ -1075,6 +1078,10 @@ void mu_draw_control_frame(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_ColorEnum
     ctx.draw_frame(ctx, rect, colorid);
 }
 
+void mu_draw_control_text_legacy(mu_Context* ctx, const(char)* str, mu_Rect rect, mu_ColorEnum colorid, mu_OptFlags opt) {
+    mu_draw_control_text(ctx, str[0 .. (str ? strlen(str) : 0)], rect, colorid, opt);
+}
+
 void mu_draw_control_text(mu_Context* ctx, const(char)[] str, mu_Rect rect, mu_ColorEnum colorid, mu_OptFlags opt) {
     mu_Vec2 pos;
     mu_Font font = ctx.style.font;
@@ -1429,6 +1436,18 @@ void scrollbar(const(char)[] x, const(char)[] y, const(char)[] w, const(char)[] 
                 cnt.scroll.y = ((ctx.mouse_pos.y - base.y - thumb.h / 2) * maxscroll) / (base.h - thumb.h);
             } else {
                 cnt.scroll.y += ctx.mouse_delta.y * cs.y / base.h;
+            }
+        } else {
+            if (ctx.key_pressed & MU_KEY_HOME) {
+                cnt.scroll.y = 0;
+            } else if (ctx.key_pressed & MU_KEY_END) {
+                cnt.scroll.y = maxscroll;
+            }
+            if (ctx.key_down & MU_KEY_PAGEUP) {
+                cnt.scroll.y -= ctx.style.scrollbar_speed / (ctx.key_down & MU_KEY_SHIFT ? 3 : 6);
+            }
+            if (ctx.key_down & MU_KEY_PAGEDOWN) {
+                cnt.scroll.y += ctx.style.scrollbar_speed / (ctx.key_down & MU_KEY_SHIFT ? 3 : 6);
             }
         }
         /* clamp scroll to limits */

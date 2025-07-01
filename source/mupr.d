@@ -30,6 +30,14 @@ private extern(C) nothrow @nogc {
     enum KEY_RIGHT_CONTROL   = 345;
     enum KEY_RIGHT_ALT       = 346;
     enum KEY_KP_ENTER        = 335;
+    enum KEY_RIGHT           = 262;
+    enum KEY_LEFT            = 263;
+    enum KEY_DOWN            = 264;
+    enum KEY_UP              = 265;
+    enum KEY_HOME            = 268;
+    enum KEY_END             = 269;
+    enum KEY_PAGE_UP         = 266;
+    enum KEY_PAGE_DOWN       = 267;
 
     struct Color { ubyte r, g, b, a; }
     struct Vector2 { float x, y; }
@@ -190,9 +198,7 @@ void mupr_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeight
 /// Handles input events and updates the microui context accordingly.
 nothrow @nogc
 void mupr_handle_input(mu_Context* ctx) {
-    enum scroll_speed = -30;
-
-    mu_input_scroll(ctx, 0, cast(int) deltaWheel * scroll_speed);
+    mu_input_scroll(ctx, 0, cast(int) (deltaWheel * -ctx.style.scrollbar_speed));
     mu_input_mousedown(ctx, cast(int) mouse.x, cast(int) mouse.y, isPressedMouse(Mouse.left) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
     mu_input_mouseup(ctx, cast(int) mouse.x, cast(int) mouse.y, isReleasedMouse(Mouse.left) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
 
@@ -202,9 +208,18 @@ void mupr_handle_input(mu_Context* ctx) {
     mu_input_keydown(ctx, IsKeyPressed(KEY_RIGHT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
     mu_input_keydown(ctx, IsKeyPressed(KEY_LEFT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
     mu_input_keydown(ctx, IsKeyPressed(KEY_RIGHT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
+    mu_input_keydown(ctx, IsKeyPressed(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : MU_KEY_NONE);
     mu_input_keydown(ctx, IsKeyPressed(KEY_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
     mu_input_keydown(ctx, IsKeyPressed(KEY_KP_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : MU_KEY_NONE);
+    mu_input_keydown(ctx, IsKeyPressed(KEY_TAB) ? MU_KEY_TAB : MU_KEY_NONE);
+    mu_input_keydown(ctx, IsKeyPressed(KEY_LEFT) ? MU_KEY_LEFT : MU_KEY_NONE);
+    mu_input_keydown(ctx, IsKeyPressed(KEY_RIGHT) ? MU_KEY_RIGHT : MU_KEY_NONE);
+    mu_input_keydown(ctx, IsKeyPressed(KEY_UP) ? MU_KEY_UP : MU_KEY_NONE);
+    mu_input_keydown(ctx, IsKeyPressed(KEY_DOWN) ? MU_KEY_DOWN : MU_KEY_NONE);
+    mu_input_keydown(ctx, IsKeyPressed(KEY_HOME) ? MU_KEY_HOME : MU_KEY_NONE);
+    mu_input_keydown(ctx, IsKeyPressed(KEY_END) ? MU_KEY_END : MU_KEY_NONE);
+    mu_input_keydown(ctx, IsKeyPressed(KEY_PAGE_UP) ? MU_KEY_PAGEUP : MU_KEY_NONE);
+    mu_input_keydown(ctx, IsKeyPressed(KEY_PAGE_DOWN) ? MU_KEY_PAGEDOWN : MU_KEY_NONE);
 
     mu_input_keyup(ctx, IsKeyReleased(KEY_LEFT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
     mu_input_keyup(ctx, IsKeyReleased(KEY_RIGHT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
@@ -212,9 +227,18 @@ void mupr_handle_input(mu_Context* ctx) {
     mu_input_keyup(ctx, IsKeyReleased(KEY_RIGHT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
     mu_input_keyup(ctx, IsKeyReleased(KEY_LEFT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
     mu_input_keyup(ctx, IsKeyReleased(KEY_RIGHT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
+    mu_input_keyup(ctx, IsKeyReleased(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : MU_KEY_NONE);
     mu_input_keyup(ctx, IsKeyReleased(KEY_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
     mu_input_keyup(ctx, IsKeyReleased(KEY_KP_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : MU_KEY_NONE);
+    mu_input_keyup(ctx, IsKeyReleased(KEY_TAB) ? MU_KEY_TAB : MU_KEY_NONE);
+    mu_input_keyup(ctx, IsKeyReleased(KEY_LEFT) ? MU_KEY_LEFT : MU_KEY_NONE);
+    mu_input_keyup(ctx, IsKeyReleased(KEY_RIGHT) ? MU_KEY_RIGHT : MU_KEY_NONE);
+    mu_input_keyup(ctx, IsKeyReleased(KEY_UP) ? MU_KEY_UP : MU_KEY_NONE);
+    mu_input_keyup(ctx, IsKeyReleased(KEY_DOWN) ? MU_KEY_DOWN : MU_KEY_NONE);
+    mu_input_keyup(ctx, IsKeyReleased(KEY_HOME) ? MU_KEY_HOME : MU_KEY_NONE);
+    mu_input_keyup(ctx, IsKeyReleased(KEY_END) ? MU_KEY_END : MU_KEY_NONE);
+    mu_input_keyup(ctx, IsKeyReleased(KEY_PAGE_UP) ? MU_KEY_PAGEUP : MU_KEY_NONE);
+    mu_input_keyup(ctx, IsKeyReleased(KEY_PAGE_DOWN) ? MU_KEY_PAGEDOWN : MU_KEY_NONE);
 
     char[128] charBuffer = void;
     size_t charBufferLength = 0;
