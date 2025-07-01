@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 // Email: alexandroskapretsos@gmail.com
 // Project: https://github.com/Kapendev/microui-d
-// Version: v0.0.2
+// Version: v0.0.3
 // ---
 
 /*
@@ -30,6 +30,7 @@
 
 // TODO: Add more doc comments.
 // TODO: work on attributes maybe.
+// TODO: Maybe better UI theming? We could add more things in the style. It should work in a way that does not break the old way of doing things.
 
 /// A tiny immediate-mode UI library.
 module microui;
