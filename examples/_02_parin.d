@@ -18,7 +18,7 @@ bool update(float dt) {
     if (mu_begin_window(&ctx, "The Window", mu_rect(40, 40, 300, 200))) {
         mu_button(&ctx, "My Button");
         mu_slider(&ctx, &number, 0, 100);
-        mu_textbox(&ctx, buffer.ptr, buffer.length);
+        mu_textboxv(&ctx, buffer);
         mu_end_window(&ctx);
     }
     mupr_end(&ctx);

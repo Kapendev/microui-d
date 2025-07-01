@@ -382,6 +382,7 @@ struct mu_Context {
     int key_down;
     int key_pressed;
     char[MU_INPUTTEXT_SIZE] input_text;
+    char[] input_text_slice;
 }
 
 @trusted:
@@ -653,6 +654,7 @@ void mu_init(mu_Context* ctx, mu_Font font = null) {
     );
     ctx.style = &ctx._style;
     ctx.style.font = font;
+    ctx.input_text_slice = ctx.input_text[0 .. 0];
 }
 
 nothrow @nogc
@@ -705,6 +707,7 @@ void mu_end(mu_Context *ctx) {
     /* reset input state */
     ctx.key_pressed = 0;
     ctx.input_text[0] = '\0';
+    ctx.input_text_slice = ctx.input_text[0 .. 0];
     ctx.mouse_pressed = 0;
     ctx.scroll_delta = mu_vec2(0, 0);
     ctx.last_mouse_pos = ctx.mouse_pos;
@@ -869,12 +872,13 @@ void mu_input_keyup(mu_Context* ctx, int key) {
 
 nothrow @nogc
 void mu_input_text(mu_Context* ctx, const(char)[] text) {
-    size_t len = strlen(ctx.input_text.ptr);
+    size_t len = ctx.input_text_slice.length;
     size_t size = text.length;
     mu_expect(len + size < ctx.input_text.sizeof);
     memcpy(ctx.input_text.ptr + len, text.ptr, size);
     // Added this to make it work with slices.
     ctx.input_text[len + size] = '\0';
+    ctx.input_text_slice = ctx.input_text[0 .. len + size];
 }
 
 /*============================================================================
@@ -1198,7 +1202,7 @@ mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, size_t bufsz, mu_Id id, m
     size_t buflen = strlen(buf);
     if (ctx.focus == id) {
         /* handle text input */
-        size_t n = mu_min(bufsz - buflen - 1, strlen(ctx.input_text.ptr));
+        int n = mu_min((cast(int) bufsz) - (cast(int) buflen) - 1, cast(int) ctx.input_text_slice.length);
         if (n > 0) {
             memcpy(buf + buflen, ctx.input_text.ptr, n);
             buflen += n;
@@ -1243,6 +1247,13 @@ mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, size_t bufsz, mu_Id id, m
         int textx = r.x + mu_min(ofx, ctx.style.padding);
         int texty = r.y + (r.h - texth) / 2;
         mu_push_clip_rect(ctx, r);
+
+        if (opt & MU_OPT_ALIGNCENTER) {
+            textx = r.x + (r.w - textw) / 2;
+        } else if (opt & MU_OPT_ALIGNRIGHT) {
+            textx = r.x + r.w - textw - ctx.style.padding;
+        }
+
         mu_draw_text(ctx, font, buf[0 .. buflen], mu_vec2(textx, texty), color);
         mu_draw_rect(ctx, mu_rect(textx + textw, texty, 1, texth), color);
         mu_pop_clip_rect(ctx);
@@ -1253,14 +1264,26 @@ mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, size_t bufsz, mu_Id id, m
     return res;
 }
 
+mu_ResFlags mu_textbox_rawv(mu_Context* ctx, char[] buf, mu_Id id, mu_Rect r, mu_OptFlags opt, size_t* newlen = null) {
+    return mu_textbox_raw(ctx, buf.ptr, buf.length, id, r, opt, newlen);
+}
+
 mu_ResFlags mu_textbox_ex(mu_Context* ctx, char* buf, size_t bufsz, mu_OptFlags opt, size_t* newlen = null) {
     mu_Id id = mu_get_id(ctx, &buf, buf.sizeof);
     mu_Rect r = mu_layout_next(ctx);
     return mu_textbox_raw(ctx, buf, bufsz, id, r, opt, newlen);
 }
 
+mu_ResFlags mu_textbox_exv(mu_Context* ctx, char[] buf, mu_OptFlags opt, size_t* newlen = null) {
+    return mu_textbox_ex(ctx, buf.ptr, buf.length, opt, newlen);
+}
+
 mu_ResFlags mu_textbox(mu_Context* ctx, char* buf, size_t bufsz, size_t* newlen = null) {
     return mu_textbox_ex(ctx, buf, bufsz, 0, newlen);
+}
+
+mu_ResFlags mu_textboxv(mu_Context* ctx, char[] buf, size_t* newlen = null) {
+    return  mu_textbox(ctx, buf.ptr, buf.length, newlen);
 }
 
 mu_ResFlags mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {
@@ -1271,7 +1294,7 @@ mu_ResFlags mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real h
     fmt_buf[fmt.length] = '\0';
 
     char[MU_MAX_FMT + 1] buf = void;
-    int x; int w;
+    int x, w;
     mu_Rect thumb;
     mu_ResFlags res = 0;
     mu_Real last = *value, v = last;

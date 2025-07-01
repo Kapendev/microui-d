@@ -162,12 +162,13 @@ void murl_handle_input(mu_Context* ctx) {
     mu_input_keyup(ctx, IsKeyReleased(KEY_KP_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
     mu_input_keyup(ctx, IsKeyReleased(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : MU_KEY_NONE);
 
-    char[512] charBuffer = void;
+    char[128] charBuffer = void;
+    size_t charBufferLength = 0;
     foreach (i; 0 .. charBuffer.length) {
         charBuffer[i] = cast(char) GetCharPressed();
-        if (charBuffer[i] == '\0') break;
+        if (charBuffer[i] == '\0') { charBufferLength = i; break; }
     }
-    mu_input_text(ctx, charBuffer[]);
+    if (charBufferLength) mu_input_text(ctx, charBuffer[0 .. charBufferLength]);
 }
 
 /// Draws the microui context to the screen.
@@ -227,4 +228,16 @@ void murl_draw(mu_Context* ctx) {
         }
     }
     EndScissorMode();
+}
+
+/// Begins input handling and UI processing.
+void murl_begin(mu_Context* ctx) {
+    murl_handle_input(ctx);
+    mu_begin(ctx);
+}
+
+/// Ends UI processing and performs drawing.
+void murl_end(mu_Context* ctx) {
+    mu_end(ctx);
+    murl_draw(ctx);
 }
