@@ -152,7 +152,8 @@ enum : mu_OptFlags {
     MU_OPT_POPUP        = (1 << 10), /// Mark as popup (draws on top).
     MU_OPT_CLOSED       = (1 << 11), /// Window starts closed.
     MU_OPT_EXPANDED     = (1 << 12), /// Window starts expanded.
-    MU_OPT_DEFAULTFOCUS = (1 << 13), /// Keep focus when no other control is focused.
+    MU_OPT_NONAME       = (1 << 13), /// Hides window name.
+    MU_OPT_DEFAULTFOCUS = (1 << 14), /// Keep focus when no other control is focused.
 }
 
 enum : mu_MouseFlags {
@@ -190,6 +191,7 @@ struct mu_Array(T, size_t N) {
     @trusted nothrow @nogc:
 
     this(const(T)[] items...) {
+        if (items.length > N) assert(0, "Too many items.");
         auto datadata = this.items;
         foreach (i; 0 .. N) datadata[i] = cast(T) items[i];
     }
@@ -252,12 +254,14 @@ struct mu_Stack(T, size_t N) {
     @safe nothrow @nogc:
 
     /// Pushes a value onto the stack.
+    pragma(inline, true)
     void push(T val) {
         items[idx] = val;
         idx += 1; /* incremented after incase `val` uses this value */
     }
 
     /// Pops a value off the stack.
+    pragma(inline, true)
     void pop() {
         mu_expect(idx > 0);
         idx -= 1;
@@ -270,15 +274,27 @@ struct mu_Rect {
 
     @safe nothrow @nogc pure:
 
-    mu_Rect expand(int n)         => mu_expand_rect(this, n);
+    pragma(inline, true)
+    mu_Rect expand(int n) => mu_expand_rect(this, n);
+    pragma(inline, true)
     mu_Rect intersect(mu_Rect r2) => mu_intersect_rects(this, r2);
-    bool overlaps(mu_Vec2 p)      => mu_rect_overlaps_vec2(this, p);
+    pragma(inline, true)
+    bool overlaps(mu_Vec2 p) => mu_rect_overlaps_vec2(this, p);
 }
 
 /// A 2D vector using ints.
 struct mu_Vec2 { int x, y; }
+
 /// A RGBA color using ubytes.
-struct mu_Color { ubyte r, g, b, a; }
+struct mu_Color {
+    ubyte r, g, b, a;
+
+    @safe nothrow @nogc pure:
+
+    pragma(inline, true)
+    mu_Color shift(int value) => mu_shift_color(this, value);
+}
+
 /// A pool item.
 struct mu_PoolItem { mu_Id id; int last_update; }
 
@@ -602,27 +618,32 @@ T mu_clamp(T)(T x, T a, T b) => mu_min(b, mu_max(a, x));
 
 extern(C) @trusted:
 
-nothrow @nogc pure
+pragma(inline, true) nothrow @nogc pure
 mu_Vec2 mu_vec2(int x, int y) {
     return mu_Vec2(x, y);
 }
 
-nothrow @nogc pure
+pragma(inline, true) nothrow @nogc pure
 mu_Rect mu_rect(int x, int y, int w, int h) {
     return mu_Rect(x, y, w, h);
 }
 
-nothrow @nogc pure
+pragma(inline, true) nothrow @nogc pure
 mu_Color mu_color(ubyte r, ubyte g, ubyte b, ubyte a) {
     return mu_Color(r, g, b, a);
 }
 
-nothrow @nogc pure
+pragma(inline, true) nothrow @nogc pure
+mu_Color mu_shift_color(mu_Color c, int value) {
+    return mu_color(cast(ubyte) (c.r + value), cast(ubyte) (c.g + value), cast(ubyte) (c.b + value), c.a);
+}
+
+pragma(inline, true) nothrow @nogc pure
 mu_Rect mu_expand_rect(mu_Rect rect, int n) {
     return mu_rect(rect.x - n, rect.y - n, rect.w + n * 2, rect.h + n * 2);
 }
 
-nothrow @nogc pure
+pragma(inline, true) nothrow @nogc pure
 mu_Rect mu_intersect_rects(mu_Rect r1, mu_Rect r2) {
     int x1 = mu_max(r1.x, r2.x);
     int y1 = mu_max(r1.y, r2.y);
@@ -633,7 +654,7 @@ mu_Rect mu_intersect_rects(mu_Rect r1, mu_Rect r2) {
     return mu_rect(x1, y1, x2 - x1, y2 - y1);
 }
 
-nothrow @nogc pure
+pragma(inline, true) nothrow @nogc pure
 bool mu_rect_overlaps_vec2(mu_Rect r, mu_Vec2 p) {
     return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
 }
@@ -1488,7 +1509,7 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
         if (~opt & MU_OPT_NOTITLE) {
             mu_Id id2 = mu_get_id_str(ctx, "!title"); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
             mu_update_control(ctx, id2, tr, opt);
-            mu_draw_control_text(ctx, title, tr, MU_COLOR_TITLETEXT, opt);
+            if (~opt & MU_OPT_NONAME) { mu_draw_control_text(ctx, title, tr, MU_COLOR_TITLETEXT, opt); }
             if (id2 == ctx.focus && ctx.mouse_down == MU_MOUSE_LEFT) {
                 cnt.rect.x += ctx.mouse_delta.x;
                 cnt.rect.y += ctx.mouse_delta.y;

@@ -174,15 +174,20 @@ void mupr_init(mu_Context* ctx, mu_Font font = null) {
         ctx.style.size = mu_vec2(data.baseSize * 6, data.baseSize);
         ctx.style.title_height = data.baseSize + 11;
         if (data.baseSize <= 16) {
-            ctx.style.control_border_size = 1;
         } else if (data.baseSize <= 64) {
             ctx.style.control_border_size = 2;
             ctx.style.spacing += 4;
             ctx.style.padding += 4;
+            ctx.style.scrollbar_size += 4;
+            ctx.style.scrollbar_speed += 4;
+            ctx.style.thumb_size += 4;
         } else {
             ctx.style.control_border_size = 3;
             ctx.style.spacing += 8;
             ctx.style.padding += 8;
+            ctx.style.scrollbar_size += 8;
+            ctx.style.scrollbar_speed += 8;
+            ctx.style.thumb_size += 8;
         }
     }
 }

@@ -45,6 +45,13 @@ void main() {
 }
 ```
 
+## Modules
+
+* `microui`: Immediate-mode UI library
+* `muutils`: Common utility functions
+* `murl`: Raylib helper utilities
+* `mupr`: Parin helper utilities
+
 ## Documentation
 
 Start with the [examples](./examples/) folder for a quick overview.
