@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 // Email: alexandroskapretsos@gmail.com
 // Project: https://github.com/Kapendev/microui-d
-// Version: v0.0.3
+// Version: v0.0.4
 // ---
 
 /*
@@ -507,7 +507,7 @@ private bool number_textbox(mu_Context* ctx, mu_Real* value, mu_Rect r, mu_Id id
         sprintf(ctx.number_edit_buf.ptr, MU_REAL_FMT, *value);
     }
     if (ctx.number_edit == id) {
-        mu_ResFlags res = mu_textbox_raw(ctx, ctx.number_edit_buf.ptr, ctx.number_edit_buf.sizeof, id, r, 0);
+        mu_ResFlags res = mu_textbox_raw(ctx, ctx.number_edit_buf, id, r, 0);
         if (res & MU_RES_SUBMIT || ctx.focus != id) {
             *value = strtod(ctx.number_edit_buf.ptr, null);
             ctx.number_edit = 0;
@@ -617,6 +617,24 @@ T mu_max(T)(T a, T b)        => ((a) > (b) ? (a) : (b));
 T mu_clamp(T)(T x, T a, T b) => mu_min(b, mu_max(a, x));
 
 extern(C) @trusted:
+
+/// Returns true if the character is a symbol (!, ", ...).
+pragma(inline, true) nothrow @nogc pure
+bool mu_is_symbol_char(char c) {
+    return (c >= '!' && c <= '/') || (c >= ':' && c <= '@') || (c >= '[' && c <= '`') || (c >= '{' && c <= '~');
+}
+
+/// Returns true if the character is a whitespace character (space, tab, ...).
+pragma(inline, true) nothrow @nogc pure
+bool mu_is_space(char c) {
+    return (c >= '\t' && c <= '\r') || (c == ' ');
+}
+
+/// Returns true if the character is a autocomplete separator.
+pragma(inline, true) nothrow @nogc pure
+bool mu_is_autocomplete_sep(char c) {
+    return mu_is_space(c) || mu_is_symbol_char(c);
+}
 
 pragma(inline, true) nothrow @nogc pure
 mu_Vec2 mu_vec2(int x, int y) {
@@ -736,7 +754,7 @@ void mu_end(mu_Context *ctx) {
 
     /* bring hover root to front if mouse was pressed */
     if (ctx.mouse_pressed && ctx.next_hover_root && ctx.next_hover_root.zindex < ctx.last_zindex && ctx.next_hover_root.zindex >= 0) {
-        mu_bring_to_front(ctx, ctx.next_hover_root);
+        if (ctx.next_hover_root.open) { mu_bring_to_front(ctx, ctx.next_hover_root); }
     }
 
     /* reset input state */
@@ -1216,6 +1234,7 @@ mu_ResFlags mu_button(mu_Context* ctx, const(char)[] label) {
     return mu_button_ex(ctx, label, 0, MU_OPT_ALIGNCENTER);
 }
 
+// NOTE(Kapendev): The only function that puts the return pointer at the end. It's fine.
 mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, bool* state) {
     mu_ResFlags res = MU_RES_NONE;
     mu_Id id = mu_get_id(ctx, &state, state.sizeof);
@@ -1237,7 +1256,7 @@ mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, bool* state) {
     return res;
 }
 
-mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, size_t bufsz, mu_Id id, mu_Rect r, mu_OptFlags opt, size_t* newlen = null) {
+mu_ResFlags mu_textbox_raw_legacy(mu_Context* ctx, char* buf, size_t bufsz, mu_Id id, mu_Rect r, mu_OptFlags opt, size_t* newlen = null) {
     mu_ResFlags res;
     mu_update_control(ctx, id, r, opt | MU_OPT_HOLDFOCUS);
 
@@ -1257,11 +1276,12 @@ mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, size_t bufsz, mu_Id id, m
                 buflen = 0;
                 buf[buflen] = '\0';
             } else if (ctx.key_down & MU_KEY_ALT && buflen > 0) {
+                /* skip empty space */
                 while (buf[buflen - 1] == ' ') { buflen -= 1; }
                 while (buflen > 0) {
                     /* skip utf-8 continuation bytes */
                     while ((buf[--buflen] & 0xc0) == 0x80 && buflen > 0) {}
-                    if (buflen == 0 || buf[buflen - 1] == ' ') break;
+                    if (buflen == 0 || mu_is_autocomplete_sep(buf[buflen - 1])) break;
                 }
                 buf[buflen] = '\0';
             } else if (buflen > 0) {
@@ -1306,26 +1326,26 @@ mu_ResFlags mu_textbox_raw(mu_Context* ctx, char* buf, size_t bufsz, mu_Id id, m
     return res;
 }
 
-mu_ResFlags mu_textbox_rawv(mu_Context* ctx, char[] buf, mu_Id id, mu_Rect r, mu_OptFlags opt, size_t* newlen = null) {
-    return mu_textbox_raw(ctx, buf.ptr, buf.length, id, r, opt, newlen);
+mu_ResFlags mu_textbox_raw(mu_Context* ctx, char[] buf, mu_Id id, mu_Rect r, mu_OptFlags opt, size_t* newlen = null) {
+    return mu_textbox_raw_legacy(ctx, buf.ptr, buf.length, id, r, opt, newlen);
 }
 
-mu_ResFlags mu_textbox_ex(mu_Context* ctx, char* buf, size_t bufsz, mu_OptFlags opt, size_t* newlen = null) {
+mu_ResFlags mu_textbox_ex_legacy(mu_Context* ctx, char* buf, size_t bufsz, mu_OptFlags opt, size_t* newlen = null) {
     mu_Id id = mu_get_id(ctx, &buf, buf.sizeof);
     mu_Rect r = mu_layout_next(ctx);
-    return mu_textbox_raw(ctx, buf, bufsz, id, r, opt, newlen);
+    return mu_textbox_raw_legacy(ctx, buf, bufsz, id, r, opt, newlen);
 }
 
-mu_ResFlags mu_textbox_exv(mu_Context* ctx, char[] buf, mu_OptFlags opt, size_t* newlen = null) {
-    return mu_textbox_ex(ctx, buf.ptr, buf.length, opt, newlen);
+mu_ResFlags mu_textbox_ex(mu_Context* ctx, char[] buf, mu_OptFlags opt, size_t* newlen = null) {
+    return mu_textbox_ex_legacy(ctx, buf.ptr, buf.length, opt, newlen);
 }
 
-mu_ResFlags mu_textbox(mu_Context* ctx, char* buf, size_t bufsz, size_t* newlen = null) {
-    return mu_textbox_ex(ctx, buf, bufsz, 0, newlen);
+mu_ResFlags mu_textbox_legacy(mu_Context* ctx, char* buf, size_t bufsz, size_t* newlen = null) {
+    return mu_textbox_ex_legacy(ctx, buf, bufsz, 0, newlen);
 }
 
-mu_ResFlags mu_textboxv(mu_Context* ctx, char[] buf, size_t* newlen = null) {
-    return  mu_textbox(ctx, buf.ptr, buf.length, newlen);
+mu_ResFlags mu_textbox(mu_Context* ctx, char[] buf, size_t* newlen = null) {
+    return  mu_textbox_legacy(ctx, buf.ptr, buf.length, newlen);
 }
 
 mu_ResFlags mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {

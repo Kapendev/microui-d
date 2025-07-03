@@ -2,15 +2,16 @@
 
 A tiny and portable immediate-mode UI library written in D.
 Microui-D is a complete rewrite of [rxi's microui](https://github.com/rxi/microui).
-It's 90% the same library, adapted with D-specific improvements where appropriate.
+It's 85% the same library, adapted with D-specific improvements where appropriate.
 
 ## Major Features
 
-* Around `1500 sloc` of D
+* Around `1800 sloc` of D
+* Easily extensible
+* Simple layout system
 * Works within a fixed memory region
 * Works with any rendering system that can draw rectangles and text
-* Easily extensible with custom controls
-* Optional helper modules for other libraries ([raylib](source/murl.d), [parin](source/mupr.d))
+* Optional helper modules for other libraries ([raylib](https://github.com/raysan5/raylib), [Parin](https://github.com/Kapendev/parin))
 * C interface for cross-language use
 * BetterC support
 
