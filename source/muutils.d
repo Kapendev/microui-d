@@ -56,7 +56,7 @@ mu_ResFlags mu_dmenu_ex(mu_Context* ctx, char[] textbox_buffer, const(char)[]* s
             if (buttonCount % 2) {
                 ctx.style.colors[MU_COLOR_BUTTON] = backup_color;
             } else {
-                ctx.style.colors[MU_COLOR_BUTTON] = backup_color.shift(-12);
+                ctx.style.colors[MU_COLOR_BUTTON] = backup_color.shift(MU_COMMON_COLOR_SHIFT);
             }
             if (mu_button_ex(ctx, item, MU_ICON_NONE, MU_OPT_NONE)) pick = cast(int) i;
             // Do autocomplete.
@@ -91,7 +91,7 @@ mu_ResFlags mu_dmenu_ex(mu_Context* ctx, char[] textbox_buffer, const(char)[]* s
     return result;
 }
 
-mu_ResFlags mu_dmenu(mu_Context* ctx, char[] textbox_buffer, const(char)[]* selection, const(const(char)[][]) items, mu_Vec2 canvas_size, const(char)[] label = "") {
+mu_ResFlags mu_dmenu(mu_Context* ctx, char[] textbox_buffer, const(char)[]* selection, const(const(char)[])[] items, mu_Vec2 canvas_size, const(char)[] label = "") {
     auto size = mu_vec2(cast(int) (canvas_size.x * 0.4f), cast(int) (canvas_size.y * 0.6f));
     auto rect = mu_rect(canvas_size.x / 2 - size.x / 2, canvas_size.y / 2 - size.y / 2,  size.x, size.y);
     return mu_dmenu_ex(ctx, textbox_buffer, selection, items, rect, MU_OPT_NOCLOSE | MU_OPT_NORESIZE | MU_OPT_NOTITLE, label);

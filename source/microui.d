@@ -49,14 +49,16 @@ private extern(C) nothrow @nogc {
 alias mu_TextWidthFunc = int function(mu_Font font, const(char)[] str); /// Used for getting the width of the text.
 alias mu_TextHeightFunc = int function(mu_Font font);                   /// Used for getting the height of the text.
 
-alias mu_Real = float; /// The floating-point type of microui.
-alias mu_Id   = uint;  /// The control ID type of microui.
-alias mu_Font = void*; /// The font type of microui.
+alias mu_Real    = float; /// The floating-point type of microui.
+alias mu_Id      = uint;  /// The control ID type of microui.
+alias mu_Font    = void*; /// The font type of microui.
+alias mu_Texture = void*; /// The texture type of microui.
 
 alias mu_ClipEnum    = int; /// The type of `MU_CLIP_*` enums.
 alias mu_CommandEnum = int; /// The type of `MU_COMMAND_*` enums.
 alias mu_ColorEnum   = int; /// The type of `MU_COLOR_*` enums.
 alias mu_IconEnum    = int; /// The type of `MU_ICON_*` enums.
+alias mu_AtlasEnum   = int; /// The type of `MU_ATLAS*` enums.
 
 alias mu_ResFlags   = int; /// The type of `MU_RES_*` enums.
 alias mu_OptFlags   = int; /// The type of `MU_OPT_*` enums.
@@ -83,6 +85,7 @@ enum MU_MAX_WIDTHS          = 16;                    /// Maximum number of colum
 enum MU_REAL_FMT            = "%.3g";                /// Format string used for real numbers.
 enum MU_SLIDER_FMT          = "%.2f";                /// Format string used for slider labels.
 enum MU_MAX_FMT             = 127;                   /// Max length of any formatted string.
+enum MU_COMMON_COLOR_SHIFT  = -12;                   /// The common shift value used for the base color of a control.
 
 enum MU_STR_SIZE = (cast(int) MU_COMMAND_SIZE) - (cast(int) mu_TextCommand.sizeof) + 1; /// Maximum length of command strings.
 static assert(MU_STR_SIZE > 0, "Type `mu_TextCommand` must fit within `MU_COMMAND_SIZE` bytes (used for embedded strings).");
@@ -130,6 +133,15 @@ enum : mu_IconEnum {
     MU_ICON_MAX,       /// Number of icon types.
 }
 
+// TODO(Kapendev): Add more default stuff here? Maybe.
+enum : mu_AtlasEnum {
+    MU_ATLAS_NONE,        /// No atlas rectangle.
+    MU_ATLAS_BUTTON,      /// Default button atlas rectangle.
+    MU_ATLAS_BUTTONHOVER, /// Button atlas rectangle on hover.
+    MU_ATLAS_BUTTONFOCUS, /// Button atlas rectangle when focused.
+    MU_ATLAS_MAX,         /// Number of atlas rectangle types.
+}
+
 enum : mu_ResFlags {
     MU_RES_NONE   = 0,        /// No result.
     MU_RES_ACTIVE = (1 << 0), /// Control is active (e.g., active window).
@@ -149,7 +161,7 @@ enum : mu_OptFlags {
     MU_OPT_NOTITLE      = (1 << 7),  /// Remove title bar from window.
     MU_OPT_HOLDFOCUS    = (1 << 8),  /// Keep control focused after click.
     MU_OPT_AUTOSIZE     = (1 << 9),  /// Automatically size to content.
-    MU_OPT_POPUP        = (1 << 10), /// Mark as popup (draws on top).
+    MU_OPT_POPUP        = (1 << 10), /// Mark as popup (e.g., closed on mouse click).
     MU_OPT_CLOSED       = (1 << 11), /// Window starts closed.
     MU_OPT_EXPANDED     = (1 << 12), /// Window starts expanded.
     MU_OPT_NONAME       = (1 << 13), /// Hides window name.
@@ -305,7 +317,7 @@ struct mu_JumpCommand { mu_BaseCommand base; void* dst; }
 /// Command to set a clipping rectangle.
 struct mu_ClipCommand { mu_BaseCommand base; mu_Rect rect; }
 /// Command to draw a rectangle with a given color.
-struct mu_RectCommand { mu_BaseCommand base; mu_Rect rect; mu_Color color; }
+struct mu_RectCommand { mu_BaseCommand base; mu_Rect rect; mu_AtlasEnum id; mu_Rect atlas_rect; mu_Color color; }
 /// Command to render text at a given position with a font and color. The text is a null-terminated string. Use `str.ptr` to access it.
 struct mu_TextCommand { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color; int len; char[1] str; }
 /// Command to draw an icon inside a rectangle with a given color.
@@ -353,17 +365,19 @@ struct mu_Container {
 
 /// UI style settings including font, sizes, spacing, and colors.
 struct mu_Style {
-    mu_Font font;                             /// The font used for UI controls.
-    mu_Vec2 size;                             /// The size of UI controls.
-    int padding;                              /// The padding around UI controls.
-    int spacing;                              /// The spacing between UI controls.
-    int indent;                               /// The indent of UI controls.
-    int title_height;                         /// The height of the window title bar.
-    int scrollbar_size;                       /// The size of the scrollbar.
-    int scrollbar_speed;                      /// The speed of the scrollbar.
-    int thumb_size;                           /// The size of the thumb.
-    int control_border_size;                  /// The size of the border.
-    mu_Array!(mu_Color, MU_COLOR_MAX) colors; /// The array of colors used in the UI.
+    mu_Font font;                                 /// The font used for UI controls.
+    mu_Texture texture;                           /// the atlas texture used for UI controls.
+    mu_Vec2 size;                                 /// The size of UI controls.
+    int padding;                                  /// The padding around UI controls.
+    int spacing;                                  /// The spacing between UI controls.
+    int indent;                                   /// The indent of UI controls.
+    int title_height;                             /// The height of the window title bar.
+    int scrollbar_size;                           /// The size of the scrollbar.
+    int scrollbar_speed;                          /// The speed of the scrollbar.
+    int thumb_size;                               /// The size of the thumb.
+    int control_border_size;                      /// The size of the border.
+    mu_Array!(mu_Color, MU_COLOR_MAX) colors;     /// The array of colors used in the UI.
+    mu_Array!(mu_Rect, MU_ATLAS_MAX) atlas_rects; /// Array of atlas rectangles used in the UI.
 }
 
 /// The main UI context.
@@ -371,7 +385,7 @@ struct mu_Context {
     /* callbacks */
     mu_TextWidthFunc text_width;   /// The function used for getting the width of the text.
     mu_TextHeightFunc text_height; /// the function used for getting the height of the text.
-    void function(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid) draw_frame;
+    void function(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid, mu_AtlasEnum atlasid = MU_ATLAS_NONE) draw_frame;
     /* core state */
     mu_Style _style;
     mu_Style* style; /// The UI style settings.
@@ -415,8 +429,8 @@ struct mu_Context {
 
 @trusted:
 
-private void draw_frame(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid) {
-    mu_draw_rect(ctx, rect, ctx.style.colors[colorid]);
+private void draw_frame(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid, mu_AtlasEnum atlasid = MU_ATLAS_NONE) {
+    mu_draw_rect(ctx, rect, ctx.style.colors[colorid], ctx.style.atlas_rects[atlasid], atlasid);
     if (colorid == MU_COLOR_SCROLLBASE || colorid == MU_COLOR_SCROLLTHUMB || colorid == MU_COLOR_TITLEBG) return;
     /* draw border */
     if (ctx.style.colors[MU_COLOR_BORDER].a) {
@@ -626,14 +640,14 @@ bool mu_is_symbol_char(char c) {
 
 /// Returns true if the character is a whitespace character (space, tab, ...).
 pragma(inline, true) nothrow @nogc pure
-bool mu_is_space(char c) {
+bool mu_is_space_char(char c) {
     return (c >= '\t' && c <= '\r') || (c == ' ');
 }
 
 /// Returns true if the character is a autocomplete separator.
 pragma(inline, true) nothrow @nogc pure
 bool mu_is_autocomplete_sep(char c) {
-    return mu_is_space(c) || mu_is_symbol_char(c);
+    return mu_is_space_char(c) || mu_is_symbol_char(c);
 }
 
 pragma(inline, true) nothrow @nogc pure
@@ -684,8 +698,8 @@ void mu_init(mu_Context* ctx, mu_Font font = null) {
     ctx.text_width = &mu_temp_text_width_func;
     ctx.text_height = &mu_temp_text_height_func;
     ctx._style = mu_Style(
-        /* font | size | padding | spacing | indent */
-        null, mu_Vec2(68, 10), 5, 4, 24,
+        /* font | atlas | size | padding | spacing | indent */
+        null, null, mu_Vec2(68, 10), 5, 4, 24,
         /* title_height | scrollbar_size | scrollbar_speed | thumb_size | control_border_size */
         24, 12, 30, 8, 1,
         mu_Array!(mu_Color, 14)(
@@ -966,14 +980,22 @@ void mu_set_clip(mu_Context* ctx, mu_Rect rect) {
     cmd.clip.rect = rect;
 }
 
-void mu_draw_rect(mu_Context* ctx, mu_Rect rect, mu_Color color) {
+void mu_draw_rect(mu_Context* ctx, mu_Rect rect, mu_Color color, mu_Rect atlas_rect = mu_Rect(), mu_AtlasEnum id = MU_ATLAS_NONE) {
     mu_Command* cmd;
-    rect = mu_intersect_rects(rect, mu_get_clip_rect(ctx));
+
+    mu_ClipEnum clipped = mu_check_clip(ctx, rect);
+    if (clipped == MU_CLIP_ALL ) { return; }
+    if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
+
     if (rect.w > 0 && rect.h > 0) {
         cmd = mu_push_command(ctx, MU_COMMAND_RECT, mu_RectCommand.sizeof);
         cmd.rect.rect = rect;
         cmd.rect.color = color;
+        cmd.rect.atlas_rect = atlas_rect;
+        cmd.rect.id = id;
     }
+
+    if (clipped) { mu_set_clip(ctx, mu_unclipped_rect); }
 }
 
 void mu_draw_box(mu_Context* ctx, mu_Rect rect, mu_Color color) {
@@ -1111,10 +1133,11 @@ mu_Rect mu_layout_next(mu_Context* ctx) {
 ** controls
 **============================================================================*/
 
-void mu_draw_control_frame(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_ColorEnum colorid, mu_OptFlags opt) {
+void mu_draw_control_frame(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_ColorEnum colorid, mu_OptFlags opt, mu_AtlasEnum atlasid = MU_ATLAS_NONE) {
     if (opt & MU_OPT_NOFRAME) { return; }
     colorid += (ctx.focus == id) ? 2 : (ctx.hover == id) ? 1 : 0;
-    ctx.draw_frame(ctx, rect, colorid);
+    atlasid += (ctx.focus == id) ? 2 : (ctx.hover == id) ? 1 : 0;
+    ctx.draw_frame(ctx, rect, colorid, atlasid);
 }
 
 void mu_draw_control_text_legacy(mu_Context* ctx, const(char)* str, mu_Rect rect, mu_ColorEnum colorid, mu_OptFlags opt) {
@@ -1216,7 +1239,7 @@ mu_ResFlags mu_button_ex_legacy(mu_Context* ctx, const(char)[] label, mu_IconEnu
     /* handle click */
     if (ctx.mouse_pressed == MU_MOUSE_LEFT && ctx.focus == id) { res |= MU_RES_SUBMIT; }
     /* draw */
-    mu_draw_control_frame(ctx, id, r, MU_COLOR_BUTTON, opt);
+    mu_draw_control_frame(ctx, id, r, MU_COLOR_BUTTON, opt, MU_ATLAS_BUTTON);
     if (label.ptr) { mu_draw_control_text(ctx, label, r, MU_COLOR_TEXT, opt); }
     if (icon) { mu_draw_icon(ctx, icon, r, ctx.style.colors[MU_COLOR_TEXT]); }
     return res;

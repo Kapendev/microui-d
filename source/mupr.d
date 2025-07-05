@@ -122,6 +122,14 @@ private extern(C) nothrow @nogc {
         bool isRightToLeft     = false;
     }
 
+    struct PTexture {
+        Texture data;
+    }
+
+    struct PTextureId {
+        GenIndex data;
+    }
+
     struct PFont {
         Font data;
         int runeSpacing;
@@ -141,7 +149,7 @@ private extern(C) nothrow @nogc {
     bool isReleasedMouse(Mouse key);
     Vec2 measureTextSizeX(PFont font, IStr text, DrawOptions options = DrawOptions(), TextOptions extra = TextOptions());
     Vec2 measureTextSize(PFontId font, IStr text, DrawOptions options = DrawOptions(), TextOptions extra = TextOptions());
-    void drawTextX(PFont font, IStr text, Vec2 position, DrawOptions options = DrawOptions(), TextOptions extra = TextOptions());
+    void drawTextureArea(PTextureId texture, Rect area, Vec2 position, DrawOptions options = DrawOptions());
     void drawText(PFontId font, IStr text, Vec2 position, DrawOptions options = DrawOptions(), TextOptions extra = TextOptions());
     void drawRect(Rect area, Rgba color = Rgba(255, 255, 255, 255));
 }
@@ -257,26 +265,43 @@ void mupr_handle_input(mu_Context* ctx) {
 /// Draws the microui context to the screen.
 void mupr_draw(mu_Context* ctx) {
     auto style_font = cast(PFontId*) ctx.style.font;
+    auto style_texture = cast(PTextureId*) ctx.style.texture;
+    auto parin_options = DrawOptions(); // We just change the color, so it should be fine.
     BeginScissorMode(0, 0, windowWidth, windowHeight);
     mu_Command *cmd;
     while (mu_next_command(ctx, &cmd)) {
         switch (cmd.type) {
             case MU_COMMAND_TEXT:
                 auto text_font = cast(PFontId*) cmd.text.font;
-                auto text_options = DrawOptions();
-                text_options.color = *(cast(Rgba*) (&cmd.text.color));
+                parin_options.color = *(cast(Rgba*) (&cmd.text.color));
                 drawText(
                     *text_font,
                     cmd.text.str.ptr[0 .. cmd.text.len],
                     Vec2(cmd.text.pos.x, cmd.text.pos.y),
-                    text_options,
+                    parin_options,
                 );
                 break;
             case MU_COMMAND_RECT:
-                drawRect(
-                    Rect(cmd.rect.rect.x, cmd.rect.rect.y, cmd.rect.rect.w, cmd.rect.rect.h),
-                    *(cast(Rgba*) (&cmd.rect.color)),
-                );
+                // TODO: I guess add something similar to the raylib helper?
+                parin_options.color = *(cast(Rgba*) (&cmd.rect.color));
+                if (style_texture && cmd.rect.id && cmd.rect.atlas_rect.w !=0 && cmd.rect.atlas_rect.h !=0) {
+                    parin_options.scale = Vec2(
+                        cmd.rect.rect.w / cast(float) cmd.rect.atlas_rect.w,
+                        cmd.rect.rect.h / cast(float) cmd.rect.atlas_rect.h,
+                    );
+                    drawTextureArea(
+                        *style_texture,
+                        Rect(cmd.rect.atlas_rect.x, cmd.rect.atlas_rect.y, cmd.rect.atlas_rect.w, cmd.rect.atlas_rect.h),
+                        Vec2(cmd.rect.rect.x, cmd.rect.rect.y),
+                        parin_options,
+                    );
+                    parin_options.scale = Vec2(1, 1);
+                } else {
+                    drawRect(
+                        Rect(cmd.rect.rect.x, cmd.rect.rect.y, cmd.rect.rect.w, cmd.rect.rect.h),
+                        parin_options.color,
+                    );
+                }
                 break;
             case MU_COMMAND_ICON:
                 const(char)[] icon = "?";
@@ -287,20 +312,18 @@ void mupr_draw(mu_Context* ctx) {
                     case MU_ICON_EXPANDED: icon = "-"; break;
                     default: break;
                 }
-                auto ic_width = ctx.text_width(style_font, icon);
-                auto ic_height = ctx.text_height(style_font);
-                auto ic_rect = cmd.icon.rect;
-                auto ic_diff = mu_vec2(ic_rect.w - ic_width, ic_rect.h - ic_height);
-                auto ic_options = DrawOptions();
-                ic_options.color = *(cast(Rgba*) (&cmd.icon.color));
-
-                if (ic_diff.x < 0) ic_diff.x *= -1;
-                if (ic_diff.y < 0) ic_diff.y *= -1;
+                auto icon_width = ctx.text_width(style_font, icon);
+                auto icon_height = ctx.text_height(style_font);
+                auto icon_rect = cmd.icon.rect;
+                auto icon_diff = mu_vec2(icon_rect.w - icon_width, icon_rect.h - icon_height);
+                if (icon_diff.x < 0) icon_diff.x *= -1;
+                if (icon_diff.y < 0) icon_diff.y *= -1;
+                parin_options.color = *(cast(Rgba*) (&cmd.icon.color));
                 drawText(
                     *style_font,
                     icon,
-                    Vec2(ic_rect.x + ic_diff.x / 2, ic_rect.y + ic_diff.y / 2),
-                    ic_options,
+                    Vec2(icon_rect.x + icon_diff.x / 2, icon_rect.y + icon_diff.y / 2),
+                    parin_options,
                 );
                 break;
             case MU_COMMAND_CLIP:
