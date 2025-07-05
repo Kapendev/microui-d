@@ -211,7 +211,7 @@ void mupr_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeight
 /// Handles input events and updates the microui context accordingly.
 nothrow @nogc
 void mupr_handle_input(mu_Context* ctx) {
-    mu_input_scroll(ctx, 0, cast(int) (deltaWheel * -ctx.style.scrollbar_speed));
+    mu_input_scroll(ctx, cast(int) (deltaWheel * -ctx.style.scrollbar_speed), cast(int) (deltaWheel * -ctx.style.scrollbar_speed));
     mu_input_mousedown(ctx, cast(int) mouse.x, cast(int) mouse.y, isPressedMouse(Mouse.left) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
     mu_input_mouseup(ctx, cast(int) mouse.x, cast(int) mouse.y, isReleasedMouse(Mouse.left) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
 

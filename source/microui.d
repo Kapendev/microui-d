@@ -576,10 +576,8 @@ private void scrollbars(mu_Context* ctx, mu_Container* cnt, mu_Rect* body) {
     /* resize body to make room for scrollbars */
     if (cs.y > cnt.body.h) { body.w -= sz; }
     if (cs.x > cnt.body.w) { body.h -= sz; }
-    /* to create a horizontal or vertical scrollbar almost-identical code is
-    ** used; only the references to `x|y` `w|h` need to be switched */
-    scrollbar!("x", "y", "w", "h")(ctx, cnt, body, cs);
-    scrollbar!("y", "x", "h", "w")(ctx, cnt, body, cs);
+    mu_scrollbar_y(ctx, cnt, body, cs);
+    mu_scrollbar_x(ctx, cnt, body, cs);
     mu_pop_clip_rect(ctx);
 }
 
@@ -758,8 +756,8 @@ void mu_end(mu_Context *ctx) {
 
     /* handle scroll input */
     if (ctx.scroll_target) {
-        ctx.scroll_target.scroll.x += ctx.scroll_delta.x;
-        ctx.scroll_target.scroll.y += ctx.scroll_delta.y;
+        if (ctx.key_down & MU_KEY_SHIFT) ctx.scroll_target.scroll.x += ctx.scroll_delta.x;
+        else ctx.scroll_target.scroll.y += ctx.scroll_delta.y;
     }
 
     /* unset focus if focus id was not touched this frame */
@@ -982,20 +980,28 @@ void mu_set_clip(mu_Context* ctx, mu_Rect rect) {
 
 void mu_draw_rect(mu_Context* ctx, mu_Rect rect, mu_Color color, mu_Rect atlas_rect = mu_Rect(), mu_AtlasEnum id = MU_ATLAS_NONE) {
     mu_Command* cmd;
+    mu_ClipEnum clipped;
+    auto intersect_rect = mu_intersect_rects(rect, mu_get_clip_rect(ctx));
+    auto is_atlas_rect = atlas_rect.w != 0 && atlas_rect.h != 0;
 
-    mu_ClipEnum clipped = mu_check_clip(ctx, rect);
-    if (clipped == MU_CLIP_ALL ) { return; }
-    if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
+    auto rect_size_over_zero = is_atlas_rect ? (rect.w > 0 && rect.h > 0) : (intersect_rect.w > 0 && intersect_rect.h > 0);
+    if (rect_size_over_zero) {
+        if (is_atlas_rect) {
+            clipped = mu_check_clip(ctx, rect);
+            if (clipped == MU_CLIP_ALL ) { return; }
+            if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
+        }
 
-    if (rect.w > 0 && rect.h > 0) {
         cmd = mu_push_command(ctx, MU_COMMAND_RECT, mu_RectCommand.sizeof);
-        cmd.rect.rect = rect;
+        cmd.rect.rect = (is_atlas_rect) ? rect : intersect_rect;
         cmd.rect.color = color;
         cmd.rect.atlas_rect = atlas_rect;
         cmd.rect.id = id;
-    }
 
-    if (clipped) { mu_set_clip(ctx, mu_unclipped_rect); }
+        if (is_atlas_rect) {
+            if (clipped) { mu_set_clip(ctx, mu_unclipped_rect); }
+        }
+    }
 }
 
 void mu_draw_box(mu_Context* ctx, mu_Rect rect, mu_Color color) {
@@ -1480,12 +1486,12 @@ void mu_end_treenode(mu_Context* ctx) {
     mu_pop_id(ctx);
 }
 
-void scrollbar(const(char)[] x, const(char)[] y, const(char)[] w, const(char)[] h)(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) {
+void mu_scrollbar_y(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) {
     /* only add scrollbar if content size is larger than body */
     int maxscroll = cs.y - b.h;
     if (maxscroll > 0 && b.h > 0) {
         mu_Rect base, thumb;
-        mu_Id id = mu_get_id_str(ctx, "!scrollbar" ~ y); // NOTE(Kapendev): In C it was something like `#y`.
+        mu_Id id = mu_get_id_str(ctx, "!scrollbary");
         /* get sizing/positioning */
         base = *b;
         base.x = b.x + b.w;
@@ -1501,29 +1507,84 @@ void scrollbar(const(char)[] x, const(char)[] y, const(char)[] w, const(char)[] 
             } else {
                 cnt.scroll.y += ctx.mouse_delta.y * cs.y / base.h;
             }
-        } else {
+        }
+        if (cnt.zindex == ctx.last_zindex && ~ctx.key_down & MU_KEY_SHIFT) {
             if (ctx.key_pressed & MU_KEY_HOME) {
                 cnt.scroll.y = 0;
             } else if (ctx.key_pressed & MU_KEY_END) {
                 cnt.scroll.y = maxscroll;
             }
             if (ctx.key_down & MU_KEY_PAGEUP) {
-                cnt.scroll.y -= ctx.style.scrollbar_speed / (ctx.key_down & MU_KEY_SHIFT ? 3 : 6);
-            }
-            if (ctx.key_down & MU_KEY_PAGEDOWN) {
-                cnt.scroll.y += ctx.style.scrollbar_speed / (ctx.key_down & MU_KEY_SHIFT ? 3 : 6);
+                cnt.scroll.y -= ctx.style.scrollbar_speed / 3;
+            } else if (ctx.key_down & MU_KEY_PAGEDOWN) {
+                cnt.scroll.y += ctx.style.scrollbar_speed / 3;
             }
         }
         /* clamp scroll to limits */
         cnt.scroll.y = mu_clamp(cnt.scroll.y, 0, maxscroll);
+        thumb.y = mu_clamp(thumb.y, base.y, base.y + base.h - thumb.h);
         /* draw base and thumb */
         ctx.draw_frame(ctx, base, MU_COLOR_SCROLLBASE);
         ctx.draw_frame(ctx, thumb, MU_COLOR_SCROLLTHUMB);
         /* set this as the scroll_target (will get scrolled on mousewheel) */
         /* if the mouse is over it */
-        if (mu_mouse_over(ctx, *b)) { ctx.scroll_target = cnt; }
+        mu_Rect mouse_area = *b;
+        mouse_area.w += ctx.style.scrollbar_size;
+        mouse_area.h += ctx.style.scrollbar_size;
+        if (mu_mouse_over(ctx, mouse_area)) { ctx.scroll_target = cnt; }
     } else {
         cnt.scroll.y = 0;
+    }
+}
+
+void mu_scrollbar_x(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) {
+    /* only add scrollbar if content size is larger than body */
+    int maxscroll = cs.x - b.w;
+    if (maxscroll > 0 && b.w > 0) {
+        mu_Rect base, thumb;
+        mu_Id id = mu_get_id_str(ctx, "!scrollbarx");
+        /* get sizing/positioning */
+        base = *b;
+        base.y = b.y + b.h;
+        base.h = ctx.style.scrollbar_size;
+        thumb = base;
+        thumb.w = mu_max(ctx.style.thumb_size, base.w * b.w / cs.x);
+        thumb.x += cnt.scroll.x * (base.w - thumb.w) / maxscroll;
+        /* handle input */
+        mu_update_control(ctx, id, base, 0);
+        if (ctx.focus == id && ctx.mouse_down == MU_MOUSE_LEFT) {
+            if (ctx.mouse_pressed == MU_MOUSE_LEFT) {
+                cnt.scroll.x = ((ctx.mouse_pos.x - base.x - thumb.w / 2) * maxscroll) / (base.w - thumb.w);
+            } else {
+                cnt.scroll.x += ctx.mouse_delta.x * cs.x / base.w;
+            }
+        }
+        if (cnt.zindex == ctx.last_zindex && ctx.key_down & MU_KEY_SHIFT) {
+            if (ctx.key_pressed & MU_KEY_HOME) {
+                cnt.scroll.x = 0;
+            } else if (ctx.key_pressed & MU_KEY_END) {
+                cnt.scroll.x = maxscroll;
+            }
+            if (ctx.key_down & MU_KEY_PAGEUP) {
+                cnt.scroll.x -= ctx.style.scrollbar_speed / 3;
+            } else if (ctx.key_down & MU_KEY_PAGEDOWN) {
+                cnt.scroll.x += ctx.style.scrollbar_speed / 3;
+            }
+        }
+        /* clamp scroll to limits */
+        cnt.scroll.x = mu_clamp(cnt.scroll.x, 0, maxscroll);
+        thumb.x = mu_clamp(thumb.x, base.x, base.x + base.w - thumb.w);
+        /* draw base and thumb */
+        ctx.draw_frame(ctx, base, MU_COLOR_SCROLLBASE);
+        ctx.draw_frame(ctx, thumb, MU_COLOR_SCROLLTHUMB);
+        /* set this as the scroll_target (will get scrolled on mousewheel) */
+        /* if the mouse is over it */
+        mu_Rect mouse_area = *b;
+        mouse_area.w += ctx.style.scrollbar_size;
+        mouse_area.h += ctx.style.scrollbar_size;
+        if (mu_mouse_over(ctx, mouse_area)) { ctx.scroll_target = cnt; }
+    } else {
+        cnt.scroll.x = 0;
     }
 }
 
@@ -1575,7 +1636,7 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
 
     /* do `resize` handle */
     if (~opt & MU_OPT_NORESIZE) {
-        int sz = ctx.style.title_height;
+        int sz = ctx.style.scrollbar_size; // RXI, WHY WAS THIS USING THE TITLE HEIGHT?
         mu_Id id2 = mu_get_id_str(ctx, "!resize"); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
         mu_Rect r = mu_rect(rect.x + rect.w - sz, rect.y + rect.h - sz, sz, sz);
         mu_update_control(ctx, id2, r, opt);
