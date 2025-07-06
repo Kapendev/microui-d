@@ -30,7 +30,6 @@
 
 // TODO: Add more doc comments.
 // TODO: work on attributes maybe.
-// TODO: Maybe better UI theming? We could add more things in the style. It should work in a way that does not break the old way of doing things.
 
 /// A tiny immediate-mode UI library.
 module microui;
@@ -46,13 +45,18 @@ private extern(C) nothrow @nogc {
     size_t strlen(const(char)* str);
 }
 
-alias mu_TextWidthFunc = int function(mu_Font font, const(char)[] str); /// Used for getting the width of the text.
-alias mu_TextHeightFunc = int function(mu_Font font);                   /// Used for getting the height of the text.
+/// Used for getting the width of the text.
+alias mu_TextWidthFunc  = int function(mu_Font font, const(char)[] str);
+/// Used for getting the height of the text.
+alias mu_TextHeightFunc = int function(mu_Font font);
+/// Used for drawing a frame.
+alias mu_DrawFrameFunc  = void function(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid, mu_AtlasEnum atlasid = MU_ATLAS_NONE);
 
-alias mu_Real    = float; /// The floating-point type of microui.
-alias mu_Id      = uint;  /// The control ID type of microui.
-alias mu_Font    = void*; /// The font type of microui.
-alias mu_Texture = void*; /// The texture type of microui.
+alias mu_Real      = float; /// The floating-point type of microui.
+alias mu_Id        = uint;  /// The control ID type of microui.
+alias mu_Font      = void*; /// The font type of microui.
+alias mu_Texture   = void*; /// The texture type of microui.
+alias mu_SliceMode = int;   /// The slice repeat mode type of microui.
 
 alias mu_ClipEnum    = int; /// The type of `MU_CLIP_*` enums.
 alias mu_CommandEnum = int; /// The type of `MU_COMMAND_*` enums.
@@ -133,7 +137,7 @@ enum : mu_IconEnum {
     MU_ICON_MAX,       /// Number of icon types.
 }
 
-// TODO(Kapendev): Add more default stuff here? Maybe.
+// TODO(Kapendev): I think it needs more stuff here. Not just buttons.
 enum : mu_AtlasEnum {
     MU_ATLAS_NONE,        /// No atlas rectangle.
     MU_ATLAS_BUTTON,      /// Default button atlas rectangle.
@@ -280,23 +284,6 @@ struct mu_Stack(T, size_t N) {
     }
 }
 
-/// A 2D rectangle using ints.
-struct mu_Rect {
-    int x, y, w, h;
-
-    @safe nothrow @nogc pure:
-
-    pragma(inline, true)
-    mu_Rect expand(int n) => mu_expand_rect(this, n);
-    pragma(inline, true)
-    mu_Rect intersect(mu_Rect r2) => mu_intersect_rects(this, r2);
-    pragma(inline, true)
-    bool overlaps(mu_Vec2 p) => mu_rect_overlaps_vec2(this, p);
-}
-
-/// A 2D vector using ints.
-struct mu_Vec2 { int x, y; }
-
 /// A RGBA color using ubytes.
 struct mu_Color {
     ubyte r, g, b, a;
@@ -307,9 +294,30 @@ struct mu_Color {
     mu_Color shift(int value) => mu_shift_color(this, value);
 }
 
-/// A pool item.
-struct mu_PoolItem { mu_Id id; int last_update; }
+/// A 2D rectangle using ints.
+struct mu_Rect {
+    int x, y, w, h;
 
+    @safe nothrow @nogc pure:
+
+    pragma(inline, true):
+    mu_Rect expand(int n) => mu_expand_rect(this, n);
+    mu_Rect intersect(mu_Rect r2) => mu_intersect_rects(this, r2);
+    bool overlaps(mu_Vec2 p) => mu_rect_overlaps_vec2(this, p);
+    bool hasSize() => mu_rect_has_size(this);
+}
+
+/// A 2D vector using ints.
+struct mu_Vec2 { int x, y; }
+/// A set of 4 integer margins for left, top, right, and bottom.
+struct mu_Margin { int left, top, right, bottom; }
+/// A part of a 9-slice with source and target rectangles for drawing.
+struct mu_SlicePart { mu_Rect source, target; bool isCorner; }
+/// The parts of a 9-slice.
+alias mu_SliceParts = mu_Array!(mu_SlicePart, 9);
+
+/// A pool item.
+struct mu_PoolItem { mu_Id id; int lastUpdate; }
 /// Base structure for all render commands, containing type and size metadata.
 struct mu_BaseCommand { mu_CommandEnum type; int size; }
 /// Command to jump to another location in the command buffer.
@@ -317,7 +325,7 @@ struct mu_JumpCommand { mu_BaseCommand base; void* dst; }
 /// Command to set a clipping rectangle.
 struct mu_ClipCommand { mu_BaseCommand base; mu_Rect rect; }
 /// Command to draw a rectangle with a given color.
-struct mu_RectCommand { mu_BaseCommand base; mu_Rect rect; mu_AtlasEnum id; mu_Rect atlas_rect; mu_Color color; }
+struct mu_RectCommand { mu_BaseCommand base; mu_Rect rect; mu_AtlasEnum id; mu_Color color; }
 /// Command to render text at a given position with a font and color. The text is a null-terminated string. Use `str.ptr` to access it.
 struct mu_TextCommand { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color; int len; char[1] str; }
 /// Command to draw an icon inside a rectangle with a given color.
@@ -340,14 +348,14 @@ union mu_Command {
 struct mu_Layout {
     mu_Rect body;
     mu_Rect next;
-    mu_Vec2 position;
+    mu_Vec2 pos;
     mu_Vec2 size;
     mu_Vec2 max;
     int[MU_MAX_WIDTHS] widths;
     int items;
-    int item_index;
-    int next_row;
-    int next_type;
+    int itemIndex;
+    int nextRow;
+    int nextType;
     int indent;
 }
 
@@ -357,348 +365,429 @@ struct mu_Container {
     mu_Command* tail;
     mu_Rect rect;
     mu_Rect body;
-    mu_Vec2 content_size;
+    mu_Vec2 contentSize;
     mu_Vec2 scroll;
-    int zindex;
+    int zIndex;
     bool open;
 }
 
 /// UI style settings including font, sizes, spacing, and colors.
 struct mu_Style {
-    mu_Font font;                                 /// The font used for UI controls.
-    mu_Texture texture;                           /// the atlas texture used for UI controls.
-    mu_Vec2 size;                                 /// The size of UI controls.
-    int padding;                                  /// The padding around UI controls.
-    int spacing;                                  /// The spacing between UI controls.
-    int indent;                                   /// The indent of UI controls.
-    int title_height;                             /// The height of the window title bar.
-    int scrollbar_size;                           /// The size of the scrollbar.
-    int scrollbar_speed;                          /// The speed of the scrollbar.
-    int thumb_size;                               /// The size of the thumb.
-    int control_border_size;                      /// The size of the border.
-    mu_Array!(mu_Color, MU_COLOR_MAX) colors;     /// The array of colors used in the UI.
-    mu_Array!(mu_Rect, MU_ATLAS_MAX) atlas_rects; /// Array of atlas rectangles used in the UI.
+    mu_Font font;                                    /// The font used for UI controls.
+    mu_Texture texture;                              /// the atlas texture used for UI controls.
+    mu_Vec2 size;                                    /// The size of UI controls.
+    int padding;                                     /// The padding around UI controls.
+    int spacing;                                     /// The spacing between UI controls.
+    int indent;                                      /// The indent of UI controls.
+    int titleHeight;                                 /// The height of the window title bar.
+    int scrollbarSize;                               /// The size of the scrollbar.
+    int scrollbarSpeed;                              /// The speed of the scrollbar.
+    int thumbSize;                                   /// The size of the thumb.
+    int controlBorderSize;                           /// The size of the border.
+    mu_Array!(mu_Color, MU_COLOR_MAX) colors;        /// The array of colors used in the UI.
+    mu_Array!(mu_Rect, MU_ATLAS_MAX) atlasRects;     /// Optional array of control atlas rectangles used in the UI.
+    mu_Array!(mu_Rect, MU_ICON_MAX) iconAtlasRects;  /// Optional array of icon atlas rectangles used in the UI.
+    mu_Array!(mu_Margin, MU_ATLAS_MAX) sliceMargins; /// Optional margins for drawing 9-slices.
+    mu_SliceMode[MU_ATLAS_MAX] sliceModes;           /// Optional repeat modes for drawing 9-slices.
 }
 
 /// The main UI context.
 struct mu_Context {
-    /* callbacks */
-    mu_TextWidthFunc text_width;   /// The function used for getting the width of the text.
-    mu_TextHeightFunc text_height; /// the function used for getting the height of the text.
-    void function(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid, mu_AtlasEnum atlasid = MU_ATLAS_NONE) draw_frame;
-    /* core state */
-    mu_Style _style;
-    mu_Style* style; /// The UI style settings.
+    // -- Callbacks
+    mu_TextWidthFunc textWidth;   /// The function used for getting the width of the text.
+    mu_TextHeightFunc textHeight; /// The function used for getting the height of the text.
+    mu_DrawFrameFunc drawFrame;   /// The function used for drawing a frame.
+
+    // -- Core State
+    mu_Style _style; /// The backup UI style.
+    mu_Style* style; /// The UI style.
     mu_Id hover;
     mu_Id focus;
-    mu_Id last_id;
-    mu_Rect last_rect;
-    int last_zindex;
-    bool updated_focus;
+    mu_Id lastId;
+    mu_Rect lastRect;
+    int lastZIndex;
+    bool updatedFocus;
     int frame;
-    mu_Container* hover_root;
-    mu_Container* next_hover_root;
-    mu_Container* scroll_target;
-    char[MU_MAX_FMT] number_edit_buf;
-    mu_Id number_edit;
-    bool is_expecting_end; // Used for missing `mu_end` call.
-    int button_counter;    // Used to avoid id problems.
-    /* stacks */
-    mu_Stack!(char, MU_COMMANDLIST_SIZE) command_list;
-    mu_Stack!(mu_Container*, MU_ROOTLIST_SIZE) root_list;
-    mu_Stack!(mu_Container*, MU_CONTAINERSTACK_SIZE) container_stack;
-    mu_Stack!(mu_Rect, MU_CLIPSTACK_SIZE) clip_stack;
-    mu_Stack!(mu_Id, MU_IDSTACK_SIZE) id_stack;
-    mu_Stack!(mu_Layout, MU_LAYOUTSTACK_SIZE) layout_stack;
-    /* retained state pools */
-    mu_Array!(mu_PoolItem, MU_CONTAINERPOOL_SIZE) container_pool;
+    mu_Container* hoverRoot;
+    mu_Container* nextHoverRoot;
+    mu_Container* scrollTarget;
+    char[MU_MAX_FMT] numberEditBuffer;
+    mu_Id numberEdit;
+    bool isExpectingEnd; // Used for missing `mu_end` call.
+    uint buttonCounter;  // Used to avoid id problems.
+
+    // -- Stacks
+    mu_Stack!(char, MU_COMMANDLIST_SIZE) commandList;
+    mu_Stack!(mu_Container*, MU_ROOTLIST_SIZE) rootList;
+    mu_Stack!(mu_Container*, MU_CONTAINERSTACK_SIZE) containerStack;
+    mu_Stack!(mu_Rect, MU_CLIPSTACK_SIZE) clipStack;
+    mu_Stack!(mu_Id, MU_IDSTACK_SIZE) idStack;
+    mu_Stack!(mu_Layout, MU_LAYOUTSTACK_SIZE) layoutStack;
+
+    // -- Retained State Pools
+    mu_Array!(mu_PoolItem, MU_CONTAINERPOOL_SIZE) containerPool;
     mu_Array!(mu_Container, MU_CONTAINERPOOL_SIZE) containers;
-    mu_Array!(mu_PoolItem, MU_TREENODEPOOL_SIZE) treenode_pool;
-    /* input state */
-    mu_Vec2 mouse_pos;
-    mu_Vec2 last_mouse_pos;
-    mu_Vec2 mouse_delta;
-    mu_Vec2 scroll_delta;
-    mu_MouseFlags mouse_down;
-    mu_MouseFlags mouse_pressed;
-    mu_KeyFlags key_down;
-    mu_KeyFlags key_pressed;
-    char[MU_INPUTTEXT_SIZE] input_text;
-    char[] input_text_slice;
+    mu_Array!(mu_PoolItem, MU_TREENODEPOOL_SIZE) treeNodePool;
+
+    // -- Input State
+    mu_Vec2 mousePos;
+    mu_Vec2 lastMousePos;
+    mu_Vec2 mouseDelta;
+    mu_Vec2 scrollDelta;
+    mu_MouseFlags mouseDown;
+    mu_MouseFlags mousePressed;
+    mu_KeyFlags keyDown;
+    mu_KeyFlags keyPressed;
+    char[MU_INPUTTEXT_SIZE] inputText;
+    char[] inputTextSlice;
 }
 
-@trusted:
-
-private void draw_frame(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid, mu_AtlasEnum atlasid = MU_ATLAS_NONE) {
-    mu_draw_rect(ctx, rect, ctx.style.colors[colorid], ctx.style.atlas_rects[atlasid], atlasid);
-    if (colorid == MU_COLOR_SCROLLBASE || colorid == MU_COLOR_SCROLLTHUMB || colorid == MU_COLOR_TITLEBG) return;
-    /* draw border */
-    if (ctx.style.colors[MU_COLOR_BORDER].a) {
-        foreach (i; 1 .. ctx.style.control_border_size + 1) {
-            mu_draw_box(ctx, mu_expand_rect(rect, i), ctx.style.colors[MU_COLOR_BORDER]);
+private @trusted {
+    void draw_frame(mu_Context* ctx, mu_Rect rect, mu_ColorEnum colorid, mu_AtlasEnum atlasid = MU_ATLAS_NONE) {
+        mu_draw_rect(ctx, rect, ctx.style.colors[colorid], atlasid);
+        if (colorid == MU_COLOR_SCROLLBASE || colorid == MU_COLOR_SCROLLTHUMB || colorid == MU_COLOR_TITLEBG) return;
+        /* draw border */
+        if (ctx.style.colors[MU_COLOR_BORDER].a && rect.hasSize) {
+            foreach (i; 1 .. ctx.style.controlBorderSize + 1) {
+                mu_draw_box(ctx, mu_expand_rect(rect, i), ctx.style.colors[MU_COLOR_BORDER]);
+            }
         }
     }
-}
 
-private int compare_zindex(const(void)* a, const(void)* b) {
-    return (*cast(mu_Container**) b).zindex - (*cast(mu_Container**) a).zindex;
-}
-
-private void hash(mu_Id* hash, const(void)* data, size_t size) {
-    const(ubyte)* p = cast(const(ubyte)*) data;
-    while (size--) {
-        *hash = (*hash ^ *p++) * 16777619;
+    int compare_zindex(const(void)* a, const(void)* b) {
+        return (*cast(mu_Container**) b).zIndex - (*cast(mu_Container**) a).zIndex;
     }
-}
 
-private void push_layout(mu_Context* ctx, mu_Rect body, mu_Vec2 scroll) {
-    mu_Layout layout;
-    memset(&layout, 0, layout.sizeof);
-    layout.body = mu_rect(body.x - scroll.x, body.y - scroll.y, body.w, body.h);
-    layout.max = mu_vec2(-0x1000000, -0x1000000);
-    ctx.layout_stack.push(layout);
-    mu_layout_row(ctx, 0, 0);
-}
-
-private mu_Layout* get_layout(mu_Context* ctx) {
-    mu_expect(ctx.layout_stack.idx != 0, "No layout available, or attempted to add control outside of a window.");
-    return &ctx.layout_stack.items[ctx.layout_stack.idx - 1];
-}
-
-private void pop_container(mu_Context* ctx) {
-    mu_Container* cnt = mu_get_current_container(ctx);
-    mu_Layout* layout = get_layout(ctx);
-    cnt.content_size.x = layout.max.x - layout.body.x;
-    cnt.content_size.y = layout.max.y - layout.body.y;
-    /* pop container, layout and id */
-    ctx.container_stack.pop();
-    ctx.layout_stack.pop();
-    mu_pop_id(ctx);
-}
-
-// NOTE(Kapendev): `MU_OPT_CLOSED` is used to not create a new container when getting???
-private mu_Container* get_container(mu_Context* ctx, mu_Id id, mu_OptFlags opt) {
-    mu_Container* cnt;
-    /* try to get existing container from pool */
-    int idx = mu_pool_get(ctx, ctx.container_pool.ptr, MU_CONTAINERPOOL_SIZE, id);
-    if (idx >= 0) {
-        if (ctx.containers[idx].open || ~opt & MU_OPT_CLOSED) {
-            mu_pool_update(ctx, ctx.container_pool.ptr, idx);
+    void hash(mu_Id* hash, const(void)* data, size_t size) {
+        const(ubyte)* p = cast(const(ubyte)*) data;
+        while (size--) {
+            *hash = (*hash ^ *p++) * 16777619;
         }
-        return &ctx.containers[idx];
     }
-    if (opt & MU_OPT_CLOSED) { return null; }
-    /* container not found in pool: init new container */
-    idx = mu_pool_init(ctx, ctx.container_pool.ptr, MU_CONTAINERPOOL_SIZE, id);
-    cnt = &ctx.containers[idx];
-    memset(cnt, 0, (*cnt).sizeof);
-    cnt.open = true;
-    mu_bring_to_front(ctx, cnt);
-    return cnt;
-}
 
-private mu_Command* push_jump(mu_Context* ctx, mu_Command* dst) {
-    mu_Command* cmd;
-    cmd = mu_push_command(ctx, MU_COMMAND_JUMP, mu_JumpCommand.sizeof);
-    cmd.jump.dst = dst;
-    return cmd;
-}
-
-private bool in_hover_root(mu_Context* ctx) {
-    int i = ctx.container_stack.idx;
-    while (i--) {
-        if (ctx.container_stack.items[i] == ctx.hover_root) { return true; }
-        /* only root containers have their `head` field set; stop searching if we've
-        ** reached the current root container */
-        if (ctx.container_stack.items[i].head) { break; }
+    void push_layout(mu_Context* ctx, mu_Rect body, mu_Vec2 scroll) {
+        mu_Layout layout;
+        memset(&layout, 0, layout.sizeof);
+        layout.body = mu_rect(body.x - scroll.x, body.y - scroll.y, body.w, body.h);
+        layout.max = mu_vec2(-0x1000000, -0x1000000);
+        ctx.layoutStack.push(layout);
+        mu_layout_row(ctx, 0, 0);
     }
-    return false;
-}
 
-private bool number_textbox(mu_Context* ctx, mu_Real* value, mu_Rect r, mu_Id id) {
-    if (ctx.mouse_pressed == MU_MOUSE_LEFT && ctx.key_down & MU_KEY_SHIFT && ctx.hover == id) {
-        ctx.number_edit = id;
-        sprintf(ctx.number_edit_buf.ptr, MU_REAL_FMT, *value);
+    mu_Layout* get_layout(mu_Context* ctx) {
+        mu_expect(ctx.layoutStack.idx != 0, "No layout available, or attempted to add control outside of a window.");
+        return &ctx.layoutStack.items[ctx.layoutStack.idx - 1];
     }
-    if (ctx.number_edit == id) {
-        mu_ResFlags res = mu_textbox_raw(ctx, ctx.number_edit_buf, id, r, 0);
-        if (res & MU_RES_SUBMIT || ctx.focus != id) {
-            *value = strtod(ctx.number_edit_buf.ptr, null);
-            ctx.number_edit = 0;
+
+    void pop_container(mu_Context* ctx) {
+        mu_Container* cnt = mu_get_current_container(ctx);
+        mu_Layout* layout = get_layout(ctx);
+        cnt.contentSize.x = layout.max.x - layout.body.x;
+        cnt.contentSize.y = layout.max.y - layout.body.y;
+        /* pop container, layout and id */
+        ctx.containerStack.pop();
+        ctx.layoutStack.pop();
+        mu_pop_id(ctx);
+    }
+
+    mu_Container* get_container(mu_Context* ctx, mu_Id id, mu_OptFlags opt) {
+        mu_Container* cnt;
+        /* try to get existing container from pool */
+        int idx = mu_pool_get(ctx, ctx.containerPool.ptr, MU_CONTAINERPOOL_SIZE, id);
+        if (idx >= 0) {
+            if (ctx.containers[idx].open || ~opt & MU_OPT_CLOSED) {
+                mu_pool_update(ctx, ctx.containerPool.ptr, idx);
+            }
+            return &ctx.containers[idx];
+        }
+        if (opt & MU_OPT_CLOSED) { return null; }
+        /* container not found in pool: init new container */
+        idx = mu_pool_init(ctx, ctx.containerPool.ptr, MU_CONTAINERPOOL_SIZE, id);
+        cnt = &ctx.containers[idx];
+        memset(cnt, 0, (*cnt).sizeof);
+        cnt.open = true;
+        mu_bring_to_front(ctx, cnt);
+        return cnt;
+    }
+
+    mu_Command* push_jump(mu_Context* ctx, mu_Command* dst) {
+        mu_Command* cmd;
+        cmd = mu_push_command(ctx, MU_COMMAND_JUMP, mu_JumpCommand.sizeof);
+        cmd.jump.dst = dst;
+        return cmd;
+    }
+
+    bool in_hover_root(mu_Context* ctx) {
+        int i = ctx.containerStack.idx;
+        while (i--) {
+            if (ctx.containerStack.items[i] == ctx.hoverRoot) { return true; }
+            /* only root containers have their `head` field set; stop searching if we've
+            ** reached the current root container */
+            if (ctx.containerStack.items[i].head) { break; }
+        }
+        return false;
+    }
+
+    bool number_textbox(mu_Context* ctx, mu_Real* value, mu_Rect r, mu_Id id) {
+        if (ctx.mousePressed == MU_MOUSE_LEFT && ctx.keyDown & MU_KEY_SHIFT && ctx.hover == id) {
+            ctx.numberEdit = id;
+            sprintf(ctx.numberEditBuffer.ptr, MU_REAL_FMT, *value);
+        }
+        if (ctx.numberEdit == id) {
+            mu_ResFlags res = mu_textbox_raw(ctx, ctx.numberEditBuffer, id, r, 0);
+            if (res & MU_RES_SUBMIT || ctx.focus != id) {
+                *value = strtod(ctx.numberEditBuffer.ptr, null);
+                ctx.numberEdit = 0;
+            } else {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    mu_ResFlags header(mu_Context* ctx, const(char)[] label, int istreenode, mu_OptFlags opt) {
+        mu_Rect r;
+        int active, expanded;
+        mu_Id id = mu_get_id_str(ctx, label);
+        int idx = mu_pool_get(ctx, ctx.treeNodePool.ptr, MU_TREENODEPOOL_SIZE, id);
+        mu_layout_row(ctx, 0, -1);
+
+        active = (idx >= 0);
+        expanded = (opt & MU_OPT_EXPANDED) ? !active : active;
+        r = mu_layout_next(ctx);
+        mu_update_control(ctx, id, r, 0);
+
+        /* handle click */
+        active ^= (ctx.mousePressed == MU_MOUSE_LEFT && ctx.focus == id);
+        /* update pool ref */
+        if (idx >= 0) {
+            if (active) { mu_pool_update(ctx, ctx.treeNodePool.ptr, idx); }
+            else { memset(&ctx.treeNodePool[idx], 0, mu_PoolItem.sizeof); }
+        } else if (active) {
+            mu_pool_init(ctx, ctx.treeNodePool.ptr, MU_TREENODEPOOL_SIZE, id);
+        }
+
+        /* draw */
+        if (istreenode) {
+            if (ctx.hover == id) { ctx.drawFrame(ctx, r, MU_COLOR_BUTTONHOVER); }
         } else {
-            return true;
+            mu_draw_control_frame(ctx, id, r, MU_COLOR_BUTTON, 0);
         }
-    }
-    return false;
-}
-
-private mu_ResFlags header(mu_Context* ctx, const(char)[] label, int istreenode, mu_OptFlags opt) {
-    mu_Rect r;
-    int active, expanded;
-    mu_Id id = mu_get_id_str(ctx, label);
-    int idx = mu_pool_get(ctx, ctx.treenode_pool.ptr, MU_TREENODEPOOL_SIZE, id);
-    mu_layout_row(ctx, 0, -1);
-
-    active = (idx >= 0);
-    expanded = (opt & MU_OPT_EXPANDED) ? !active : active;
-    r = mu_layout_next(ctx);
-    mu_update_control(ctx, id, r, 0);
-
-    /* handle click */
-    active ^= (ctx.mouse_pressed == MU_MOUSE_LEFT && ctx.focus == id);
-    /* update pool ref */
-    if (idx >= 0) {
-        if (active) { mu_pool_update(ctx, ctx.treenode_pool.ptr, idx); }
-        else { memset(&ctx.treenode_pool[idx], 0, mu_PoolItem.sizeof); }
-    } else if (active) {
-        mu_pool_init(ctx, ctx.treenode_pool.ptr, MU_TREENODEPOOL_SIZE, id);
+        mu_draw_icon(ctx, expanded ? MU_ICON_EXPANDED : MU_ICON_COLLAPSED, mu_rect(r.x, r.y, r.h, r.h), ctx.style.colors[MU_COLOR_TEXT]);
+        r.x += r.h - ctx.style.padding;
+        r.w -= r.h - ctx.style.padding;
+        mu_draw_control_text(ctx, label, r, MU_COLOR_TEXT, 0);
+        return expanded ? MU_RES_ACTIVE : 0;
     }
 
-    /* draw */
-    if (istreenode) {
-        if (ctx.hover == id) { ctx.draw_frame(ctx, r, MU_COLOR_BUTTONHOVER); }
-    } else {
-        mu_draw_control_frame(ctx, id, r, MU_COLOR_BUTTON, 0);
+    void scrollbars(mu_Context* ctx, mu_Container* cnt, mu_Rect* body) {
+        int sz = ctx.style.scrollbarSize;
+        mu_Vec2 cs = cnt.contentSize;
+        cs.x += ctx.style.padding * 2;
+        cs.y += ctx.style.padding * 2;
+        mu_push_clip_rect(ctx, *body);
+        /* resize body to make room for scrollbars */
+        if (cs.y > cnt.body.h) { body.w -= sz; }
+        if (cs.x > cnt.body.w) { body.h -= sz; }
+        mu_scrollbar_y(ctx, cnt, body, cs);
+        mu_scrollbar_x(ctx, cnt, body, cs);
+        mu_pop_clip_rect(ctx);
     }
-    mu_draw_icon(ctx, expanded ? MU_ICON_EXPANDED : MU_ICON_COLLAPSED, mu_rect(r.x, r.y, r.h, r.h), ctx.style.colors[MU_COLOR_TEXT]);
-    r.x += r.h - ctx.style.padding;
-    r.w -= r.h - ctx.style.padding;
-    mu_draw_control_text(ctx, label, r, MU_COLOR_TEXT, 0);
-    return expanded ? MU_RES_ACTIVE : 0;
-}
 
-private void scrollbars(mu_Context* ctx, mu_Container* cnt, mu_Rect* body) {
-    int sz = ctx.style.scrollbar_size;
-    mu_Vec2 cs = cnt.content_size;
-    cs.x += ctx.style.padding * 2;
-    cs.y += ctx.style.padding * 2;
-    mu_push_clip_rect(ctx, *body);
-    /* resize body to make room for scrollbars */
-    if (cs.y > cnt.body.h) { body.w -= sz; }
-    if (cs.x > cnt.body.w) { body.h -= sz; }
-    mu_scrollbar_y(ctx, cnt, body, cs);
-    mu_scrollbar_x(ctx, cnt, body, cs);
-    mu_pop_clip_rect(ctx);
-}
-
-private void push_container_body(mu_Context* ctx, mu_Container* cnt, mu_Rect body, mu_OptFlags opt) {
-    if (~opt & MU_OPT_NOSCROLL) { scrollbars(ctx, cnt, &body); }
-    push_layout(ctx, mu_expand_rect(body, -ctx.style.padding), cnt.scroll);
-    cnt.body = body;
-}
-
-private void begin_root_container(mu_Context* ctx, mu_Container* cnt) {
-    /* push container to roots list and push head command */
-    ctx.container_stack.push(cnt);
-    ctx.root_list.push(cnt);
-    cnt.head = push_jump(ctx, null);
-    /* set as hover root if the mouse is overlapping this container and it has a
-    ** higher zindex than the current hover root */
-    if (mu_rect_overlaps_vec2(cnt.rect, ctx.mouse_pos) && (!ctx.next_hover_root || cnt.zindex > ctx.next_hover_root.zindex)) {
-        ctx.next_hover_root = cnt;
+    void push_container_body(mu_Context* ctx, mu_Container* cnt, mu_Rect body, mu_OptFlags opt) {
+        if (~opt & MU_OPT_NOSCROLL) { scrollbars(ctx, cnt, &body); }
+        push_layout(ctx, mu_expand_rect(body, -ctx.style.padding), cnt.scroll);
+        cnt.body = body;
     }
-    /* clipping is reset here in case a root-container is made within
-    ** another root-containers's begin/end block; this prevents the inner
-    ** root-container being clipped to the outer */
-    ctx.clip_stack.push(mu_unclipped_rect);
+
+    void begin_root_container(mu_Context* ctx, mu_Container* cnt) {
+        /* push container to roots list and push head command */
+        ctx.containerStack.push(cnt);
+        ctx.rootList.push(cnt);
+        cnt.head = push_jump(ctx, null);
+        /* set as hover root if the mouse is overlapping this container and it has a
+        ** higher z index than the current hover root */
+        if (mu_rect_overlaps_vec2(cnt.rect, ctx.mousePos) && (!ctx.nextHoverRoot || cnt.zIndex > ctx.nextHoverRoot.zIndex)) {
+            ctx.nextHoverRoot = cnt;
+        }
+        /* clipping is reset here in case a root-container is made within
+        ** another root-containers's begin/end block; this prevents the inner
+        ** root-container being clipped to the outer */
+        ctx.clipStack.push(mu_unclipped_rect);
+    }
+
+    void end_root_container(mu_Context* ctx) {
+        /* push tail 'goto' jump command and set head 'skip' command. the final steps
+        ** on initing these are done in mu_end() */
+        mu_Container* cnt = mu_get_current_container(ctx);
+        cnt.tail = push_jump(ctx, null);
+        cnt.head.jump.dst = ctx.commandList.items.ptr + ctx.commandList.idx;
+        /* pop base clip rect and container */
+        mu_pop_clip_rect(ctx);
+        pop_container(ctx);
+    }
+
+    // The microui assert function.
+    nothrow @nogc pure
+    void mu_expect(bool x, const(char)[] message = "Fatal microui error.") => assert(x, message);
+    // Temporary text measurement function for prototyping.
+    nothrow @nogc pure
+    int mu_temp_text_width_func(mu_Font font, const(char)[] str) => 200;
+    // Temporary text measurement function for prototyping.
+    nothrow @nogc pure
+    int mu_temp_text_height_func(mu_Font font) => 20;
 }
 
-private void end_root_container(mu_Context* ctx) {
-    /* push tail 'goto' jump command and set head 'skip' command. the final steps
-    ** on initing these are done in mu_end() */
-    mu_Container* cnt = mu_get_current_container(ctx);
-    cnt.tail = push_jump(ctx, null);
-    cnt.head.jump.dst = ctx.command_list.items.ptr + ctx.command_list.idx;
-    /* pop base clip rect and container */
-    mu_pop_clip_rect(ctx);
-    pop_container(ctx);
+pragma(inline, true) @safe nothrow @nogc pure {
+    T mu_min(T)(T a, T b)        => ((a) < (b) ? (a) : (b));
+    T mu_max(T)(T a, T b)        => ((a) > (b) ? (a) : (b));
+    T mu_clamp(T)(T x, T a, T b) => mu_min(b, mu_max(a, x));
+
+    /// Returns true if the character is a symbol (!, ", ...).
+    bool mu_is_symbol_char(char c) {
+        return (c >= '!' && c <= '/') || (c >= ':' && c <= '@') || (c >= '[' && c <= '`') || (c >= '{' && c <= '~');
+    }
+
+    /// Returns true if the character is a whitespace character (space, tab, ...).
+    bool mu_is_space_char(char c) {
+        return (c >= '\t' && c <= '\r') || (c == ' ');
+    }
+
+    /// Returns true if the character is a autocomplete separator.
+    bool mu_is_autocomplete_sep(char c) {
+        return mu_is_space_char(c) || mu_is_symbol_char(c);
+    }
+
+    mu_Vec2 mu_vec2(int x, int y) {
+        return mu_Vec2(x, y);
+    }
+
+    mu_Rect mu_rect(int x, int y, int w, int h) {
+        return mu_Rect(x, y, w, h);
+    }
+
+    mu_Color mu_color(ubyte r, ubyte g, ubyte b, ubyte a) {
+        return mu_Color(r, g, b, a);
+    }
+
+    mu_Color mu_shift_color(mu_Color c, int value) {
+        return mu_color(cast(ubyte) (c.r + value), cast(ubyte) (c.g + value), cast(ubyte) (c.b + value), c.a);
+    }
+
+    mu_Rect mu_expand_rect(mu_Rect rect, int n) {
+        return mu_rect(rect.x - n, rect.y - n, rect.w + n * 2, rect.h + n * 2);
+    }
+
+    mu_Rect mu_intersect_rects(mu_Rect r1, mu_Rect r2) {
+        int x1 = mu_max(r1.x, r2.x);
+        int y1 = mu_max(r1.y, r2.y);
+        int x2 = mu_min(r1.x + r1.w, r2.x + r2.w);
+        int y2 = mu_min(r1.y + r1.h, r2.y + r2.h);
+        if (x2 < x1) { x2 = x1; }
+        if (y2 < y1) { y2 = y1; }
+        return mu_rect(x1, y1, x2 - x1, y2 - y1);
+    }
+
+    bool mu_rect_overlaps_vec2(mu_Rect r, mu_Vec2 p) {
+        return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+    }
+
+    bool mu_rect_has_size(mu_Rect r) {
+        return r.w > 0 && r.h > 0;
+    }
+
+    @trusted
+    mu_SliceParts mu_compute_slice_parts(mu_Rect source, mu_Rect target, mu_Margin margin) {
+        if (!source.hasSize || !target.hasSize) return mu_SliceParts();
+        mu_SliceParts result = void;
+        auto can_clip_w = target.w - source.w < -margin.left - margin.right;
+        auto can_clip_h = target.h - source.h < -margin.top - margin.bottom;
+
+        // -- 1 --
+        result[0].source.x  = source.x;                                              result[0].source.y = source.y;
+        result[0].source.w  = margin.left;                                           result[0].source.h = margin.top;
+        result[0].target.x  = target.x;                                              result[0].target.y = target.y;
+        result[0].target.w  = margin.left;                                           result[0].target.h = margin.top;
+        result[0].isCorner = true;
+
+        result[1].source.x  = source.x + result[0].source.w;                         result[1].source.y = result[0].source.y;
+        result[1].source.w  = source.w - margin.left - margin.right;                 result[1].source.h = result[0].source.h;
+        result[1].target.x  = target.x + margin.left;                                result[1].target.y = result[0].target.y;
+        result[1].target.w  = target.w - margin.left - margin.right;                 result[1].target.h = result[0].target.h;
+        result[1].isCorner = false;
+
+        result[2].source.x  = source.x + result[0].source.w + result[1].source.w;    result[2].source.y = result[0].source.y;
+        result[2].source.w  = margin.right;                                          result[2].source.h = result[0].source.h;
+        result[2].target.x  = target.x + target.w - margin.right;                    result[2].target.y = result[0].target.y;
+        result[2].target.w  = margin.right;                                          result[2].target.h = result[0].target.h;
+        result[2].isCorner = true;
+
+        // -- 2 --
+        result[3].source.x  = result[0].source.x;                                    result[3].source.y = source.y + margin.top;
+        result[3].source.w  = result[0].source.w;                                    result[3].source.h = source.h - margin.top - margin.bottom;
+        result[3].target.x  = result[0].target.x;                                    result[3].target.y = target.y + margin.top;
+        result[3].target.w  = result[0].target.w;                                    result[3].target.h = target.h - margin.top - margin.bottom;
+        result[3].isCorner = false;
+
+        result[4].source.x  = result[1].source.x;                                    result[4].source.y = result[3].source.y;
+        result[4].source.w  = result[1].source.w;                                    result[4].source.h = result[3].source.h;
+        result[4].target.x  = result[1].target.x;                                    result[4].target.y = result[3].target.y;
+        result[4].target.w  = result[1].target.w;                                    result[4].target.h = result[3].target.h;
+        result[4].isCorner = false;
+
+        result[5].source.x  = result[2].source.x;                                    result[5].source.y = result[3].source.y;
+        result[5].source.w  = result[2].source.w;                                    result[5].source.h = result[3].source.h;
+        result[5].target.x  = result[2].target.x;                                    result[5].target.y = result[3].target.y;
+        result[5].target.w  = result[2].target.w;                                    result[5].target.h = result[3].target.h;
+        result[5].isCorner = false;
+
+        // -- 3 --
+        result[6].source.x  = result[0].source.x;                                    result[6].source.y = source.y + margin.top + result[3].source.h;
+        result[6].source.w  = result[0].source.w;                                    result[6].source.h = margin.bottom;
+        result[6].target.x  = result[0].target.x;                                    result[6].target.y = target.y + margin.top + result[3].target.h;
+        result[6].target.w  = result[0].target.w;                                    result[6].target.h = margin.bottom;
+        result[6].isCorner = true;
+
+        result[7].source.x  = result[1].source.x;                                    result[7].source.y = result[6].source.y;
+        result[7].source.w  = result[1].source.w;                                    result[7].source.h = result[6].source.h;
+        result[7].target.x  = result[1].target.x;                                    result[7].target.y = result[6].target.y;
+        result[7].target.w  = result[1].target.w;                                    result[7].target.h = result[6].target.h;
+        result[7].isCorner = false;
+
+        result[8].source.x  = result[2].source.x;                                    result[8].source.y = result[6].source.y;
+        result[8].source.w  = result[2].source.w;                                    result[8].source.h = result[6].source.h;
+        result[8].target.x  = result[2].target.x;                                    result[8].target.y = result[6].target.y;
+        result[8].target.w  = result[2].target.w;                                    result[8].target.h = result[6].target.h;
+        result[8].isCorner = true;
+
+        if (can_clip_w) {
+            foreach (ref item; result) {
+                item.target.x = target.x;
+                item.target.w = target.w;
+            }
+        }
+        if (can_clip_h) {
+            foreach (ref item; result) {
+                item.target.y = target.y;
+                item.target.h = target.h;
+            }
+        }
+        return result;
+    }
 }
-
-// The microui assert function.
-nothrow @nogc pure
-private void mu_expect(bool x, const(char)[] message = "Fatal microui error.") => assert(x, message);
-// Temporary text measurement function for prototyping.
-nothrow @nogc pure
-private int mu_temp_text_width_func(mu_Font font, const(char)[] str) => 200;
-// Temporary text measurement function for prototyping.
-nothrow @nogc pure
-private int mu_temp_text_height_func(mu_Font font) => 20;
-
-T mu_min(T)(T a, T b)        => ((a) < (b) ? (a) : (b));
-T mu_max(T)(T a, T b)        => ((a) > (b) ? (a) : (b));
-T mu_clamp(T)(T x, T a, T b) => mu_min(b, mu_max(a, x));
 
 extern(C) @trusted:
-
-/// Returns true if the character is a symbol (!, ", ...).
-pragma(inline, true) nothrow @nogc pure
-bool mu_is_symbol_char(char c) {
-    return (c >= '!' && c <= '/') || (c >= ':' && c <= '@') || (c >= '[' && c <= '`') || (c >= '{' && c <= '~');
-}
-
-/// Returns true if the character is a whitespace character (space, tab, ...).
-pragma(inline, true) nothrow @nogc pure
-bool mu_is_space_char(char c) {
-    return (c >= '\t' && c <= '\r') || (c == ' ');
-}
-
-/// Returns true if the character is a autocomplete separator.
-pragma(inline, true) nothrow @nogc pure
-bool mu_is_autocomplete_sep(char c) {
-    return mu_is_space_char(c) || mu_is_symbol_char(c);
-}
-
-pragma(inline, true) nothrow @nogc pure
-mu_Vec2 mu_vec2(int x, int y) {
-    return mu_Vec2(x, y);
-}
-
-pragma(inline, true) nothrow @nogc pure
-mu_Rect mu_rect(int x, int y, int w, int h) {
-    return mu_Rect(x, y, w, h);
-}
-
-pragma(inline, true) nothrow @nogc pure
-mu_Color mu_color(ubyte r, ubyte g, ubyte b, ubyte a) {
-    return mu_Color(r, g, b, a);
-}
-
-pragma(inline, true) nothrow @nogc pure
-mu_Color mu_shift_color(mu_Color c, int value) {
-    return mu_color(cast(ubyte) (c.r + value), cast(ubyte) (c.g + value), cast(ubyte) (c.b + value), c.a);
-}
-
-pragma(inline, true) nothrow @nogc pure
-mu_Rect mu_expand_rect(mu_Rect rect, int n) {
-    return mu_rect(rect.x - n, rect.y - n, rect.w + n * 2, rect.h + n * 2);
-}
-
-pragma(inline, true) nothrow @nogc pure
-mu_Rect mu_intersect_rects(mu_Rect r1, mu_Rect r2) {
-    int x1 = mu_max(r1.x, r2.x);
-    int y1 = mu_max(r1.y, r2.y);
-    int x2 = mu_min(r1.x + r1.w, r2.x + r2.w);
-    int y2 = mu_min(r1.y + r1.h, r2.y + r2.h);
-    if (x2 < x1) { x2 = x1; }
-    if (y2 < y1) { y2 = y1; }
-    return mu_rect(x1, y1, x2 - x1, y2 - y1);
-}
-
-pragma(inline, true) nothrow @nogc pure
-bool mu_rect_overlaps_vec2(mu_Rect r, mu_Vec2 p) {
-    return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
-}
 
 nothrow @nogc
 void mu_init(mu_Context* ctx, mu_Font font = null) {
     memset(ctx, 0, (*ctx).sizeof);
-    ctx.draw_frame = &draw_frame;
-    ctx.text_width = &mu_temp_text_width_func;
-    ctx.text_height = &mu_temp_text_height_func;
+    ctx.drawFrame = &draw_frame;
+    ctx.textWidth = &mu_temp_text_width_func;
+    ctx.textHeight = &mu_temp_text_height_func;
     ctx._style = mu_Style(
         /* font | atlas | size | padding | spacing | indent */
         null, null, mu_Vec2(68, 10), 5, 4, 24,
-        /* title_height | scrollbar_size | scrollbar_speed | thumb_size | control_border_size */
+        /* titleHeight | scrollbarSize | scrollbarSpeed | thumbSize | controlBorderSize */
         24, 12, 30, 8, 1,
         mu_Array!(mu_Color, 14)(
             mu_Color(230, 230, 230, 255), /* MU_COLOR_TEXT */
@@ -719,99 +808,99 @@ void mu_init(mu_Context* ctx, mu_Font font = null) {
     );
     ctx.style = &ctx._style;
     ctx.style.font = font;
-    ctx.input_text_slice = ctx.input_text[0 .. 0];
+    ctx.inputTextSlice = ctx.inputText[0 .. 0];
 }
 
 nothrow @nogc
 void mu_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeightFunc height, mu_Font font = null) {
     mu_init(ctx, font);
-    ctx.text_width = width;
-    ctx.text_height = height;
+    ctx.textWidth = width;
+    ctx.textHeight = height;
 }
 
 void mu_begin(mu_Context* ctx) {
-    mu_expect(ctx.text_width && ctx.text_height, "Missing text measurement functions (ctx.text_width, ctx.text_height).");
-    mu_expect(!ctx.is_expecting_end, "Missing call to `mu_end` after `mu_begin` function.");
+    mu_expect(ctx.textWidth && ctx.textHeight, "Missing text measurement functions (ctx.textWidth, ctx.textHeight).");
+    mu_expect(!ctx.isExpectingEnd, "Missing call to `mu_end` after `mu_begin` function.");
 
-    ctx.command_list.idx = 0;
-    ctx.root_list.idx = 0;
-    ctx.scroll_target = null;
-    ctx.hover_root = ctx.next_hover_root;
-    ctx.next_hover_root = null;
-    ctx.mouse_delta.x = ctx.mouse_pos.x - ctx.last_mouse_pos.x;
-    ctx.mouse_delta.y = ctx.mouse_pos.y - ctx.last_mouse_pos.y;
+    ctx.commandList.idx = 0;
+    ctx.rootList.idx = 0;
+    ctx.scrollTarget = null;
+    ctx.hoverRoot = ctx.nextHoverRoot;
+    ctx.nextHoverRoot = null;
+    ctx.mouseDelta.x = ctx.mousePos.x - ctx.lastMousePos.x;
+    ctx.mouseDelta.y = ctx.mousePos.y - ctx.lastMousePos.y;
     ctx.frame += 1;
-    ctx.is_expecting_end = true;
-    ctx.button_counter = 0;
+    ctx.isExpectingEnd = true;
+    ctx.buttonCounter = 0;
 }
 
 void mu_end(mu_Context *ctx) {
     /* check stacks */
-    mu_expect(ctx.container_stack.idx == 0, "Container stack is not empty.");
-    mu_expect(ctx.clip_stack.idx      == 0, "Clip stack is not empty.");
-    mu_expect(ctx.id_stack.idx        == 0, "ID stack is not empty.");
-    mu_expect(ctx.layout_stack.idx    == 0, "Layout stack is not empty.");
-    ctx.is_expecting_end = false;
-    ctx.button_counter = 0;
+    mu_expect(ctx.containerStack.idx == 0, "Container stack is not empty.");
+    mu_expect(ctx.clipStack.idx      == 0, "Clip stack is not empty.");
+    mu_expect(ctx.idStack.idx        == 0, "ID stack is not empty.");
+    mu_expect(ctx.layoutStack.idx    == 0, "Layout stack is not empty.");
+    ctx.isExpectingEnd = false;
+    ctx.buttonCounter = 0;
 
     /* handle scroll input */
-    if (ctx.scroll_target) {
-        if (ctx.key_down & MU_KEY_SHIFT) ctx.scroll_target.scroll.x += ctx.scroll_delta.x;
-        else ctx.scroll_target.scroll.y += ctx.scroll_delta.y;
+    if (ctx.scrollTarget) {
+        if (ctx.keyDown & MU_KEY_SHIFT) ctx.scrollTarget.scroll.x += ctx.scrollDelta.x;
+        else ctx.scrollTarget.scroll.y += ctx.scrollDelta.y;
     }
 
     /* unset focus if focus id was not touched this frame */
-    if (!ctx.updated_focus) { ctx.focus = 0; }
-    ctx.updated_focus = false;
+    if (!ctx.updatedFocus) { ctx.focus = 0; }
+    ctx.updatedFocus = false;
 
     /* bring hover root to front if mouse was pressed */
-    if (ctx.mouse_pressed && ctx.next_hover_root && ctx.next_hover_root.zindex < ctx.last_zindex && ctx.next_hover_root.zindex >= 0) {
-        if (ctx.next_hover_root.open) { mu_bring_to_front(ctx, ctx.next_hover_root); }
+    if (ctx.mousePressed && ctx.nextHoverRoot && ctx.nextHoverRoot.zIndex < ctx.lastZIndex && ctx.nextHoverRoot.zIndex >= 0) {
+        if (ctx.nextHoverRoot.open) { mu_bring_to_front(ctx, ctx.nextHoverRoot); }
     }
 
     /* reset input state */
-    ctx.key_pressed = 0;
-    ctx.input_text[0] = '\0';
-    ctx.input_text_slice = ctx.input_text[0 .. 0];
-    ctx.mouse_pressed = 0;
-    ctx.scroll_delta = mu_vec2(0, 0);
-    ctx.last_mouse_pos = ctx.mouse_pos;
+    ctx.keyPressed = 0;
+    ctx.inputText[0] = '\0';
+    ctx.inputTextSlice = ctx.inputText[0 .. 0];
+    ctx.mousePressed = 0;
+    ctx.scrollDelta = mu_vec2(0, 0);
+    ctx.lastMousePos = ctx.mousePos;
 
-    /* sort root containers by zindex */
-    int n = ctx.root_list.idx;
-    qsort(ctx.root_list.items.ptr, n, (mu_Container*).sizeof, cast(STDLIB_QSORT_FUNC) &compare_zindex);
+    /* sort root containers by z index */
+    int n = ctx.rootList.idx;
+    qsort(ctx.rootList.items.ptr, n, (mu_Container*).sizeof, cast(STDLIB_QSORT_FUNC) &compare_zindex);
 
     /* set root container jump commands */
     foreach (i; 0 .. n) {
-        mu_Container* cnt = ctx.root_list.items[i];
+        mu_Container* cnt = ctx.rootList.items[i];
         /* if this is the first container then make the first command jump to it.
         ** otherwise set the previous container's tail to jump to this one */
         if (i == 0) {
-            mu_Command* cmd = cast(mu_Command*) ctx.command_list.items;
+            mu_Command* cmd = cast(mu_Command*) ctx.commandList.items;
             cmd.jump.dst = cast(char*) cnt.head + mu_JumpCommand.sizeof;
         } else {
-            mu_Container* prev = ctx.root_list.items[i - 1];
+            mu_Container* prev = ctx.rootList.items[i - 1];
             prev.tail.jump.dst = cast(char*) cnt.head + mu_JumpCommand.sizeof;
         }
         /* make the last container's tail jump to the end of command list */
         if (i == n - 1) {
-            cnt.tail.jump.dst = ctx.command_list.items.ptr + ctx.command_list.idx;
+            cnt.tail.jump.dst = ctx.commandList.items.ptr + ctx.commandList.idx;
         }
     }
 }
 
 void mu_set_focus(mu_Context* ctx, mu_Id id) {
     ctx.focus = id;
-    ctx.updated_focus = true;
+    ctx.updatedFocus = true;
 }
 
 mu_Id mu_get_id(mu_Context *ctx, const(void)* data, size_t size) {
     enum HASH_INITIAL = 2166136261; // A 32bit fnv-1a hash.
 
-    int idx = ctx.id_stack.idx;
-    mu_Id res = (idx > 0) ? ctx.id_stack.items[idx - 1] : HASH_INITIAL;
+    int idx = ctx.idStack.idx;
+    mu_Id res = (idx > 0) ? ctx.idStack.items[idx - 1] : HASH_INITIAL;
     hash(&res, data, size);
-    ctx.last_id = res;
+    ctx.lastId = res;
     return res;
 }
 
@@ -820,29 +909,29 @@ mu_Id mu_get_id_str(mu_Context *ctx, const(char)[] str) {
 }
 
 void mu_push_id(mu_Context* ctx, const(void)* data, size_t size) {
-    ctx.id_stack.push(mu_get_id(ctx, data, size));
+    ctx.idStack.push(mu_get_id(ctx, data, size));
 }
 
 void mu_push_id_str(mu_Context* ctx, const(char)[] str) {
-    ctx.id_stack.push(mu_get_id(ctx, str.ptr, str.length));
+    ctx.idStack.push(mu_get_id(ctx, str.ptr, str.length));
 }
 
 void mu_pop_id(mu_Context* ctx) {
-    ctx.id_stack.pop();
+    ctx.idStack.pop();
 }
 
 void mu_push_clip_rect(mu_Context* ctx, mu_Rect rect) {
     mu_Rect last = mu_get_clip_rect(ctx);
-    ctx.clip_stack.push(mu_intersect_rects(rect, last));
+    ctx.clipStack.push(mu_intersect_rects(rect, last));
 }
 
 void mu_pop_clip_rect(mu_Context* ctx) {
-    ctx.clip_stack.pop();
+    ctx.clipStack.pop();
 }
 
 mu_Rect mu_get_clip_rect(mu_Context* ctx) {
-    mu_expect(ctx.clip_stack.idx > 0);
-    return ctx.clip_stack.items[ctx.clip_stack.idx - 1];
+    mu_expect(ctx.clipStack.idx > 0);
+    return ctx.clipStack.items[ctx.clipStack.idx - 1];
 }
 
 mu_ClipEnum mu_check_clip(mu_Context* ctx, mu_Rect r) {
@@ -853,8 +942,8 @@ mu_ClipEnum mu_check_clip(mu_Context* ctx, mu_Rect r) {
 }
 
 mu_Container* mu_get_current_container(mu_Context* ctx) {
-    mu_expect(ctx.container_stack.idx > 0);
-    return ctx.container_stack.items[ctx.container_stack.idx - 1];
+    mu_expect(ctx.containerStack.idx > 0);
+    return ctx.containerStack.items[ctx.containerStack.idx - 1];
 }
 
 mu_Container* mu_get_container(mu_Context* ctx, const(char)[] name) {
@@ -863,7 +952,7 @@ mu_Container* mu_get_container(mu_Context* ctx, const(char)[] name) {
 }
 
 void mu_bring_to_front(mu_Context* ctx, mu_Container* cnt) {
-    cnt.zindex = ++ctx.last_zindex;
+    cnt.zIndex = ++ctx.lastZIndex;
 }
 
 /*============================================================================
@@ -874,8 +963,8 @@ int mu_pool_init(mu_Context* ctx, mu_PoolItem* items, size_t len, mu_Id id) {
     int n = -1;
     int f = ctx.frame;
     foreach (i; 0 .. len) {
-        if (items[i].last_update < f) {
-            f = items[i].last_update;
+        if (items[i].lastUpdate < f) {
+            f = items[i].lastUpdate;
             n = cast(int) i;
         }
     }
@@ -893,7 +982,7 @@ int mu_pool_get(mu_Context* ctx, mu_PoolItem* items, size_t len, mu_Id id) {
 }
 
 void mu_pool_update(mu_Context* ctx, mu_PoolItem* items, size_t idx) {
-    items[idx].last_update = ctx.frame;
+    items[idx].lastUpdate = ctx.frame;
 }
 
 /*============================================================================
@@ -902,60 +991,61 @@ void mu_pool_update(mu_Context* ctx, mu_PoolItem* items, size_t idx) {
 
 nothrow @nogc
 void mu_input_mousemove(mu_Context* ctx, int x, int y) {
-    ctx.mouse_pos = mu_vec2(x, y);
+    ctx.mousePos = mu_vec2(x, y);
 }
 
 nothrow @nogc
 void mu_input_mousedown(mu_Context* ctx, int x, int y, mu_MouseFlags btn) {
     mu_input_mousemove(ctx, x, y);
-    ctx.mouse_down |= btn;
-    ctx.mouse_pressed |= btn;
+    ctx.mouseDown |= btn;
+    ctx.mousePressed |= btn;
 }
 
 nothrow @nogc
 void mu_input_mouseup(mu_Context* ctx, int x, int y, mu_MouseFlags btn) {
     mu_input_mousemove(ctx, x, y);
-    ctx.mouse_down &= ~btn;
+    ctx.mouseDown &= ~btn;
 }
 
 nothrow @nogc
 void mu_input_scroll(mu_Context* ctx, int x, int y) {
-    ctx.scroll_delta.x += x;
-    ctx.scroll_delta.y += y;
+    ctx.scrollDelta.x += x;
+    ctx.scrollDelta.y += y;
 }
 
 nothrow @nogc
 void mu_input_keydown(mu_Context* ctx, mu_KeyFlags key) {
-    ctx.key_pressed |= key;
-    ctx.key_down |= key;
+    ctx.keyPressed |= key;
+    ctx.keyDown |= key;
 }
 
 nothrow @nogc
 void mu_input_keyup(mu_Context* ctx, mu_KeyFlags key) {
-    ctx.key_down &= ~key;
+    ctx.keyDown &= ~key;
 }
 
 nothrow @nogc
 void mu_input_text(mu_Context* ctx, const(char)[] text) {
-    size_t len = ctx.input_text_slice.length;
+    size_t len = ctx.inputTextSlice.length;
     size_t size = text.length;
-    mu_expect(len + size < ctx.input_text.sizeof);
-    memcpy(ctx.input_text.ptr + len, text.ptr, size);
+    mu_expect(len + size < ctx.inputText.sizeof);
+    memcpy(ctx.inputText.ptr + len, text.ptr, size);
     // Added this to make it work with slices.
-    ctx.input_text[len + size] = '\0';
-    ctx.input_text_slice = ctx.input_text[0 .. len + size];
+    ctx.inputText[len + size] = '\0';
+    ctx.inputTextSlice = ctx.inputText[0 .. len + size];
 }
 
 /*============================================================================
 ** commandlist
 **============================================================================*/
 
+// NOTE(Kapendev): Should maybe zero the memory?
 mu_Command* mu_push_command(mu_Context* ctx, mu_CommandEnum type, size_t size) {
-    mu_Command* cmd = cast(mu_Command*) (ctx.command_list.items.ptr + ctx.command_list.idx);
-    mu_expect(ctx.command_list.idx + size < MU_COMMANDLIST_SIZE);
+    mu_Command* cmd = cast(mu_Command*) (ctx.commandList.items.ptr + ctx.commandList.idx);
+    mu_expect(ctx.commandList.idx + size < MU_COMMANDLIST_SIZE);
     cmd.base.type = type;
     cmd.base.size = cast(int) size;
-    ctx.command_list.idx += size;
+    ctx.commandList.idx += size;
     return cmd;
 }
 
@@ -963,9 +1053,9 @@ bool mu_next_command(mu_Context* ctx, mu_Command** cmd) {
     if (*cmd) {
         *cmd = cast(mu_Command*) ((cast(char*) *cmd) + (*cmd).base.size);
     } else {
-        *cmd = cast(mu_Command*) ctx.command_list.items;
+        *cmd = cast(mu_Command*) ctx.commandList.items;
     }
-    while (cast(char*) *cmd != ctx.command_list.items.ptr + ctx.command_list.idx) {
+    while (cast(char*) *cmd != ctx.commandList.items.ptr + ctx.commandList.idx) {
         if ((*cmd).type != MU_COMMAND_JUMP) { return true; }
         *cmd = cast(mu_Command*) (*cmd).jump.dst;
     }
@@ -978,24 +1068,24 @@ void mu_set_clip(mu_Context* ctx, mu_Rect rect) {
     cmd.clip.rect = rect;
 }
 
-void mu_draw_rect(mu_Context* ctx, mu_Rect rect, mu_Color color, mu_Rect atlas_rect = mu_Rect(), mu_AtlasEnum id = MU_ATLAS_NONE) {
+void mu_draw_rect(mu_Context* ctx, mu_Rect rect, mu_Color color, mu_AtlasEnum id = MU_ATLAS_NONE) {
     mu_Command* cmd;
     mu_ClipEnum clipped;
     auto intersect_rect = mu_intersect_rects(rect, mu_get_clip_rect(ctx));
-    auto is_atlas_rect = atlas_rect.w != 0 && atlas_rect.h != 0;
+    auto is_atlas_rect = id != MU_ATLAS_NONE && ctx.style.atlasRects[id].hasSize;
+    auto target_rect = is_atlas_rect ? rect : intersect_rect;
 
-    auto rect_size_over_zero = is_atlas_rect ? (rect.w > 0 && rect.h > 0) : (intersect_rect.w > 0 && intersect_rect.h > 0);
-    if (rect_size_over_zero) {
+    if (target_rect.hasSize) {
         if (is_atlas_rect) {
-            clipped = mu_check_clip(ctx, rect);
+            clipped = mu_check_clip(ctx, target_rect);
             if (clipped == MU_CLIP_ALL ) { return; }
             if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
         }
 
+        // See `draw_frame` for more info.
         cmd = mu_push_command(ctx, MU_COMMAND_RECT, mu_RectCommand.sizeof);
-        cmd.rect.rect = (is_atlas_rect) ? rect : intersect_rect;
+        cmd.rect.rect = target_rect;
         cmd.rect.color = color;
-        cmd.rect.atlas_rect = atlas_rect;
         cmd.rect.id = id;
 
         if (is_atlas_rect) {
@@ -1013,7 +1103,7 @@ void mu_draw_box(mu_Context* ctx, mu_Rect rect, mu_Color color) {
 
 void mu_draw_text(mu_Context* ctx, mu_Font font, const(char)[] str, mu_Vec2 pos, mu_Color color) {
     mu_Command* cmd;
-    mu_Rect rect = mu_rect(pos.x, pos.y, ctx.text_width(font, str), ctx.text_height(font));
+    mu_Rect rect = mu_rect(pos.x, pos.y, ctx.textWidth(font, str), ctx.textHeight(font));
     mu_ClipEnum clipped = mu_check_clip(ctx, rect);
     if (clipped == MU_CLIP_ALL ) { return; }
     if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
@@ -1056,11 +1146,11 @@ void mu_layout_begin_column(mu_Context* ctx) {
 void mu_layout_end_column(mu_Context* ctx) {
     mu_Layout* a, b;
     b = get_layout(ctx);
-    ctx.layout_stack.pop();
-    /* inherit position/next_row/max from child layout if they are greater */
+    ctx.layoutStack.pop();
+    /* inherit position/nextRow/max from child layout if they are greater */
     a = get_layout(ctx);
-    a.position.x = mu_max(a.position.x, b.position.x + b.body.x - a.body.x);
-    a.next_row = mu_max(a.next_row, b.next_row + b.body.y - a.body.y);
+    a.pos.x = mu_max(a.pos.x, b.pos.x + b.body.x - a.body.x);
+    a.nextRow = mu_max(a.nextRow, b.nextRow + b.body.y - a.body.y);
     a.max.x = mu_max(a.max.x, b.max.x);
     a.max.y = mu_max(a.max.y, b.max.y);
 }
@@ -1072,12 +1162,11 @@ void mu_layout_row_legacy(mu_Context* ctx, int items, const(int)* widths, int he
         memcpy(layout.widths.ptr, widths, items * widths[0].sizeof);
     }
     layout.items = items;
-    layout.position = mu_vec2(layout.indent, layout.next_row);
+    layout.pos = mu_vec2(layout.indent, layout.nextRow);
     layout.size.y = height;
-    layout.item_index = 0;
+    layout.itemIndex = 0;
 }
 
-// NOTE(Kapendev): Sokol-d likes the `-preview=safer` flag.
 void mu_layout_row(mu_Context* ctx, int height, const(int)[] widths...) {
     mu_layout_row_legacy(ctx, cast(int) widths.length, widths.ptr, height);
 }
@@ -1093,7 +1182,7 @@ void mu_layout_height(mu_Context* ctx, int height) {
 void mu_layout_set_next(mu_Context* ctx, mu_Rect r, bool relative) {
     mu_Layout* layout = get_layout(ctx);
     layout.next = r;
-    layout.next_type = relative ? RELATIVE : ABSOLUTE;
+    layout.nextType = relative ? RELATIVE : ABSOLUTE;
 }
 
 mu_Rect mu_layout_next(mu_Context* ctx) {
@@ -1101,38 +1190,38 @@ mu_Rect mu_layout_next(mu_Context* ctx) {
     mu_Style* style = ctx.style;
     mu_Rect res;
 
-    if (layout.next_type) {
+    if (layout.nextType) {
         /* handle rect set by `mu_layout_set_next` */
-        int type = layout.next_type;
-        layout.next_type = 0;
+        int type = layout.nextType;
+        layout.nextType = 0;
         res = layout.next;
-        if (type == ABSOLUTE) { return (ctx.last_rect = res); }
+        if (type == ABSOLUTE) { return (ctx.lastRect = res); }
     } else {
         /* handle next row */
-        if (layout.item_index == layout.items) { mu_layout_row_legacy(ctx, layout.items, null, layout.size.y); }
+        if (layout.itemIndex == layout.items) { mu_layout_row_legacy(ctx, layout.items, null, layout.size.y); }
         /* position */
-        res.x = layout.position.x;
-        res.y = layout.position.y;
+        res.x = layout.pos.x;
+        res.y = layout.pos.y;
         /* size */
-        res.w = layout.items > 0 ? layout.widths[layout.item_index] : layout.size.x;
+        res.w = layout.items > 0 ? layout.widths[layout.itemIndex] : layout.size.x;
         res.h = layout.size.y;
         if (res.w == 0) { res.w = style.size.x + style.padding * 2; }
         if (res.h == 0) { res.h = style.size.y + style.padding * 2; }
         if (res.w <  0) { res.w += layout.body.w - res.x + 1; }
         if (res.h <  0) { res.h += layout.body.h - res.y + 1; }
-        layout.item_index++;
+        layout.itemIndex++;
     }
     /* update position */
-    layout.position.x += res.w + style.spacing;
-    layout.next_row = mu_max(layout.next_row, res.y + res.h + style.spacing);
+    layout.pos.x += res.w + style.spacing;
+    layout.nextRow = mu_max(layout.nextRow, res.y + res.h + style.spacing);
     /* apply body offset */
     res.x += layout.body.x;
     res.y += layout.body.y;
     /* update max position */
     layout.max.x = mu_max(layout.max.x, res.x + res.w);
     layout.max.y = mu_max(layout.max.y, res.y + res.h);
-    ctx.last_rect = res;
-    return ctx.last_rect;
+    ctx.lastRect = res;
+    return ctx.lastRect;
 }
 
 /*============================================================================
@@ -1143,7 +1232,7 @@ void mu_draw_control_frame(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_ColorEnum
     if (opt & MU_OPT_NOFRAME) { return; }
     colorid += (ctx.focus == id) ? 2 : (ctx.hover == id) ? 1 : 0;
     atlasid += (ctx.focus == id) ? 2 : (ctx.hover == id) ? 1 : 0;
-    ctx.draw_frame(ctx, rect, colorid, atlasid);
+    ctx.drawFrame(ctx, rect, colorid, atlasid);
 }
 
 void mu_draw_control_text_legacy(mu_Context* ctx, const(char)* str, mu_Rect rect, mu_ColorEnum colorid, mu_OptFlags opt) {
@@ -1153,9 +1242,9 @@ void mu_draw_control_text_legacy(mu_Context* ctx, const(char)* str, mu_Rect rect
 void mu_draw_control_text(mu_Context* ctx, const(char)[] str, mu_Rect rect, mu_ColorEnum colorid, mu_OptFlags opt) {
     mu_Vec2 pos;
     mu_Font font = ctx.style.font;
-    int tw = ctx.text_width(font, str);
+    int tw = ctx.textWidth(font, str);
     mu_push_clip_rect(ctx, rect);
-    pos.y = rect.y + (rect.h - ctx.text_height(font)) / 2;
+    pos.y = rect.y + (rect.h - ctx.textHeight(font)) / 2;
     if (opt & MU_OPT_ALIGNCENTER) {
         pos.x = rect.x + (rect.w - tw) / 2;
     } else if (opt & MU_OPT_ALIGNRIGHT) {
@@ -1168,7 +1257,7 @@ void mu_draw_control_text(mu_Context* ctx, const(char)[] str, mu_Rect rect, mu_C
 }
 
 bool mu_mouse_over(mu_Context* ctx, mu_Rect rect) {
-    return mu_rect_overlaps_vec2(rect, ctx.mouse_pos) && mu_rect_overlaps_vec2(mu_get_clip_rect(ctx), ctx.mouse_pos) && in_hover_root(ctx);
+    return mu_rect_overlaps_vec2(rect, ctx.mousePos) && mu_rect_overlaps_vec2(mu_get_clip_rect(ctx), ctx.mousePos) && in_hover_root(ctx);
 }
 
 void mu_update_control(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_OptFlags opt) {
@@ -1176,15 +1265,15 @@ void mu_update_control(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_OptFlags opt)
 
     if (ctx.focus == 0 && opt & MU_OPT_DEFAULTFOCUS) { mu_set_focus(ctx, id); }
 
-    if (ctx.focus == id) { ctx.updated_focus = true; }
+    if (ctx.focus == id) { ctx.updatedFocus = true; }
     if (opt & MU_OPT_NOINTERACT) { return; }
-    if (mouseover && !ctx.mouse_down) { ctx.hover = id; }
+    if (mouseover && !ctx.mouseDown) { ctx.hover = id; }
     if (ctx.focus == id) {
-        if (ctx.mouse_pressed && !mouseover && ~opt & MU_OPT_DEFAULTFOCUS) { mu_set_focus(ctx, 0); }
-        if (!ctx.mouse_down && ~opt & MU_OPT_HOLDFOCUS) { mu_set_focus(ctx, 0); }
+        if (ctx.mousePressed && !mouseover && ~opt & MU_OPT_DEFAULTFOCUS) { mu_set_focus(ctx, 0); }
+        if (!ctx.mouseDown && ~opt & MU_OPT_HOLDFOCUS) { mu_set_focus(ctx, 0); }
     }
     if (ctx.hover == id) {
-        if (ctx.mouse_pressed) {
+        if (ctx.mousePressed) {
             mu_set_focus(ctx, id);
         } else if (!mouseover) {
             ctx.hover = 0;
@@ -1202,7 +1291,7 @@ void mu_text(mu_Context* ctx, const(char)[] text) {
     mu_Font font = ctx.style.font;
     mu_Color color = ctx.style.colors[MU_COLOR_TEXT];
     mu_layout_begin_column(ctx);
-    mu_layout_row(ctx, ctx.text_height(font), -1);
+    mu_layout_row(ctx, ctx.textHeight(font), -1);
 
     if (text.length != 0) {
         const(char)* p = text.ptr;
@@ -1216,7 +1305,7 @@ void mu_text(mu_Context* ctx, const(char)[] text) {
             do {
                 const(char)* word = p;
                 while (p < text.ptr + text.length && *p && *p != ' ' && *p != '\n') { p += 1; }
-                w += ctx.text_width(font, word[0 .. p - word]);
+                w += ctx.textWidth(font, word[0 .. p - word]);
                 if (w > r.w && end != start) { break; }
                 end = p++;
             } while(end < text.ptr + text.length && *end && *end != '\n');
@@ -1243,7 +1332,7 @@ mu_ResFlags mu_button_ex_legacy(mu_Context* ctx, const(char)[] label, mu_IconEnu
     mu_Rect r = mu_layout_next(ctx);
     mu_update_control(ctx, id, r, opt);
     /* handle click */
-    if (ctx.mouse_pressed == MU_MOUSE_LEFT && ctx.focus == id) { res |= MU_RES_SUBMIT; }
+    if (ctx.mousePressed == MU_MOUSE_LEFT && ctx.focus == id) { res |= MU_RES_SUBMIT; }
     /* draw */
     mu_draw_control_frame(ctx, id, r, MU_COLOR_BUTTON, opt, MU_ATLAS_BUTTON);
     if (label.ptr) { mu_draw_control_text(ctx, label, r, MU_COLOR_TEXT, opt); }
@@ -1252,10 +1341,10 @@ mu_ResFlags mu_button_ex_legacy(mu_Context* ctx, const(char)[] label, mu_IconEnu
 }
 
 mu_ResFlags mu_button_ex(mu_Context* ctx, const(char)[] label, mu_IconEnum icon, mu_OptFlags opt) {
-    mu_push_id(ctx, &ctx.button_counter, ctx.button_counter.sizeof);
+    mu_push_id(ctx, &ctx.buttonCounter, ctx.buttonCounter.sizeof);
     auto res = mu_button_ex_legacy(ctx, label, icon, opt);
     mu_pop_id(ctx);
-    ctx.button_counter += 1;
+    ctx.buttonCounter += 1;
     return res;
 }
 
@@ -1271,7 +1360,7 @@ mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, bool* state) {
     mu_Rect box = mu_rect(r.x, r.y, r.h, r.h);
     mu_update_control(ctx, id, r, 0);
     /* handle click */
-    if (ctx.mouse_pressed == MU_MOUSE_LEFT && ctx.focus == id) {
+    if (ctx.mousePressed == MU_MOUSE_LEFT && ctx.focus == id) {
         res |= MU_RES_CHANGE;
         *state = !*state;
     }
@@ -1292,19 +1381,19 @@ mu_ResFlags mu_textbox_raw_legacy(mu_Context* ctx, char* buf, size_t bufsz, mu_I
     size_t buflen = strlen(buf);
     if (ctx.focus == id) {
         /* handle text input */
-        int n = mu_min((cast(int) bufsz) - (cast(int) buflen) - 1, cast(int) ctx.input_text_slice.length);
+        int n = mu_min((cast(int) bufsz) - (cast(int) buflen) - 1, cast(int) ctx.inputTextSlice.length);
         if (n > 0) {
-            memcpy(buf + buflen, ctx.input_text.ptr, n);
+            memcpy(buf + buflen, ctx.inputText.ptr, n);
             buflen += n;
             buf[buflen] = '\0';
             res |= MU_RES_CHANGE;
         }
         /* handle backspace */
-        if (ctx.key_pressed & MU_KEY_BACKSPACE && buflen > 0) {
-            if (ctx.key_down & MU_KEY_CTRL) {
+        if (ctx.keyPressed & MU_KEY_BACKSPACE && buflen > 0) {
+            if (ctx.keyDown & MU_KEY_CTRL) {
                 buflen = 0;
                 buf[buflen] = '\0';
-            } else if (ctx.key_down & MU_KEY_ALT && buflen > 0) {
+            } else if (ctx.keyDown & MU_KEY_ALT && buflen > 0) {
                 /* skip empty space */
                 while (buf[buflen - 1] == ' ') { buflen -= 1; }
                 while (buflen > 0) {
@@ -1321,7 +1410,7 @@ mu_ResFlags mu_textbox_raw_legacy(mu_Context* ctx, char* buf, size_t bufsz, mu_I
             res |= MU_RES_CHANGE;
         }
         /* handle return */
-        if (ctx.key_pressed & MU_KEY_RETURN) {
+        if (ctx.keyPressed & MU_KEY_RETURN) {
             mu_set_focus(ctx, 0);
             res |= MU_RES_SUBMIT;
         }
@@ -1332,8 +1421,8 @@ mu_ResFlags mu_textbox_raw_legacy(mu_Context* ctx, char* buf, size_t bufsz, mu_I
     if (ctx.focus == id) {
         mu_Color color = ctx.style.colors[MU_COLOR_TEXT];
         mu_Font font = ctx.style.font;
-        int textw = ctx.text_width(font, buf[0 .. buflen]);
-        int texth = ctx.text_height(font);
+        int textw = ctx.textWidth(font, buf[0 .. buflen]);
+        int texth = ctx.textHeight(font);
         int ofx = r.w - ctx.style.padding - textw - 1;
         int textx = r.x + mu_min(ofx, ctx.style.padding);
         int texty = r.y + (r.h - texth) / 2;
@@ -1397,8 +1486,8 @@ mu_ResFlags mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real h
     /* handle normal mode */
     mu_update_control(ctx, id, base, opt);
     /* handle input */
-    if (ctx.focus == id && (ctx.mouse_down | ctx.mouse_pressed) == MU_MOUSE_LEFT) {
-        v = low + (ctx.mouse_pos.x - base.x) * (high - low) / base.w;
+    if (ctx.focus == id && (ctx.mouseDown | ctx.mousePressed) == MU_MOUSE_LEFT) {
+        v = low + (ctx.mousePos.x - base.x) * (high - low) / base.w;
         if (step) { v = (cast(long) ((v + step / 2) / step)) * step; }
     }
     /* clamp and store value, update res */
@@ -1408,7 +1497,7 @@ mu_ResFlags mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real h
     /* draw base */
     mu_draw_control_frame(ctx, id, base, MU_COLOR_BASE, opt);
     /* draw thumb */
-    w = ctx.style.thumb_size;
+    w = ctx.style.thumbSize;
     x = cast(int) ((v - low) * (base.w - w) / (high - low));
     thumb = mu_rect(base.x + x, base.y, w, base.h);
     mu_draw_control_frame(ctx, id, thumb, MU_COLOR_BUTTON, opt);
@@ -1442,7 +1531,7 @@ mu_ResFlags mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(ch
     /* handle normal mode */
     mu_update_control(ctx, id, base, opt);
     /* handle input */
-    if (ctx.focus == id && ctx.mouse_down == MU_MOUSE_LEFT) { *value += ctx.mouse_delta.x * step; }
+    if (ctx.focus == id && ctx.mouseDown == MU_MOUSE_LEFT) { *value += ctx.mouseDelta.x * step; }
     /* set flag if value changed */
     if (*value != last) { res |= MU_RES_CHANGE; }
 
@@ -1472,7 +1561,7 @@ mu_ResFlags mu_begin_treenode_ex(mu_Context* ctx, const(char)[] label, mu_OptFla
     mu_ResFlags res = header(ctx, label, 1, opt);
     if (res & MU_RES_ACTIVE) {
         get_layout(ctx).indent += ctx.style.indent;
-        ctx.id_stack.push(ctx.last_id);
+        ctx.idStack.push(ctx.lastId);
     }
     return res;
 }
@@ -1495,43 +1584,43 @@ void mu_scrollbar_y(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
         /* get sizing/positioning */
         base = *b;
         base.x = b.x + b.w;
-        base.w = ctx.style.scrollbar_size;
+        base.w = ctx.style.scrollbarSize;
         thumb = base;
-        thumb.h = mu_max(ctx.style.thumb_size, base.h * b.h / cs.y);
+        thumb.h = mu_max(ctx.style.thumbSize, base.h * b.h / cs.y);
         thumb.y += cnt.scroll.y * (base.h - thumb.h) / maxscroll;
         /* handle input */
         mu_update_control(ctx, id, base, 0);
-        if (ctx.focus == id && ctx.mouse_down == MU_MOUSE_LEFT) {
-            if (ctx.mouse_pressed == MU_MOUSE_LEFT) {
-                cnt.scroll.y = ((ctx.mouse_pos.y - base.y - thumb.h / 2) * maxscroll) / (base.h - thumb.h);
+        if (ctx.focus == id && ctx.mouseDown == MU_MOUSE_LEFT) {
+            if (ctx.mousePressed == MU_MOUSE_LEFT) {
+                cnt.scroll.y = ((ctx.mousePos.y - base.y - thumb.h / 2) * maxscroll) / (base.h - thumb.h);
             } else {
-                cnt.scroll.y += ctx.mouse_delta.y * cs.y / base.h;
+                cnt.scroll.y += ctx.mouseDelta.y * cs.y / base.h;
             }
         }
-        if (cnt.zindex == ctx.last_zindex && ~ctx.key_down & MU_KEY_SHIFT) {
-            if (ctx.key_pressed & MU_KEY_HOME) {
+        if (cnt.zIndex == ctx.lastZIndex && ~ctx.keyDown & MU_KEY_SHIFT) {
+            if (ctx.keyPressed & MU_KEY_HOME) {
                 cnt.scroll.y = 0;
-            } else if (ctx.key_pressed & MU_KEY_END) {
+            } else if (ctx.keyPressed & MU_KEY_END) {
                 cnt.scroll.y = maxscroll;
             }
-            if (ctx.key_down & MU_KEY_PAGEUP) {
-                cnt.scroll.y -= ctx.style.scrollbar_speed / 3;
-            } else if (ctx.key_down & MU_KEY_PAGEDOWN) {
-                cnt.scroll.y += ctx.style.scrollbar_speed / 3;
+            if (ctx.keyDown & MU_KEY_PAGEUP) {
+                cnt.scroll.y -= ctx.style.scrollbarSpeed / 3;
+            } else if (ctx.keyDown & MU_KEY_PAGEDOWN) {
+                cnt.scroll.y += ctx.style.scrollbarSpeed / 3;
             }
         }
         /* clamp scroll to limits */
         cnt.scroll.y = mu_clamp(cnt.scroll.y, 0, maxscroll);
         thumb.y = mu_clamp(thumb.y, base.y, base.y + base.h - thumb.h);
         /* draw base and thumb */
-        ctx.draw_frame(ctx, base, MU_COLOR_SCROLLBASE);
-        ctx.draw_frame(ctx, thumb, MU_COLOR_SCROLLTHUMB);
-        /* set this as the scroll_target (will get scrolled on mousewheel) */
+        ctx.drawFrame(ctx, base, MU_COLOR_SCROLLBASE);
+        ctx.drawFrame(ctx, thumb, MU_COLOR_SCROLLTHUMB);
+        /* set this as the scroll target (will get scrolled on mousewheel) */
         /* if the mouse is over it */
         mu_Rect mouse_area = *b;
-        mouse_area.w += ctx.style.scrollbar_size;
-        mouse_area.h += ctx.style.scrollbar_size;
-        if (mu_mouse_over(ctx, mouse_area)) { ctx.scroll_target = cnt; }
+        mouse_area.w += ctx.style.scrollbarSize;
+        mouse_area.h += ctx.style.scrollbarSize;
+        if (mu_mouse_over(ctx, mouse_area)) { ctx.scrollTarget = cnt; }
     } else {
         cnt.scroll.y = 0;
     }
@@ -1546,43 +1635,43 @@ void mu_scrollbar_x(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
         /* get sizing/positioning */
         base = *b;
         base.y = b.y + b.h;
-        base.h = ctx.style.scrollbar_size;
+        base.h = ctx.style.scrollbarSize;
         thumb = base;
-        thumb.w = mu_max(ctx.style.thumb_size, base.w * b.w / cs.x);
+        thumb.w = mu_max(ctx.style.thumbSize, base.w * b.w / cs.x);
         thumb.x += cnt.scroll.x * (base.w - thumb.w) / maxscroll;
         /* handle input */
         mu_update_control(ctx, id, base, 0);
-        if (ctx.focus == id && ctx.mouse_down == MU_MOUSE_LEFT) {
-            if (ctx.mouse_pressed == MU_MOUSE_LEFT) {
-                cnt.scroll.x = ((ctx.mouse_pos.x - base.x - thumb.w / 2) * maxscroll) / (base.w - thumb.w);
+        if (ctx.focus == id && ctx.mouseDown == MU_MOUSE_LEFT) {
+            if (ctx.mousePressed == MU_MOUSE_LEFT) {
+                cnt.scroll.x = ((ctx.mousePos.x - base.x - thumb.w / 2) * maxscroll) / (base.w - thumb.w);
             } else {
-                cnt.scroll.x += ctx.mouse_delta.x * cs.x / base.w;
+                cnt.scroll.x += ctx.mouseDelta.x * cs.x / base.w;
             }
         }
-        if (cnt.zindex == ctx.last_zindex && ctx.key_down & MU_KEY_SHIFT) {
-            if (ctx.key_pressed & MU_KEY_HOME) {
+        if (cnt.zIndex == ctx.lastZIndex && ctx.keyDown & MU_KEY_SHIFT) {
+            if (ctx.keyPressed & MU_KEY_HOME) {
                 cnt.scroll.x = 0;
-            } else if (ctx.key_pressed & MU_KEY_END) {
+            } else if (ctx.keyPressed & MU_KEY_END) {
                 cnt.scroll.x = maxscroll;
             }
-            if (ctx.key_down & MU_KEY_PAGEUP) {
-                cnt.scroll.x -= ctx.style.scrollbar_speed / 3;
-            } else if (ctx.key_down & MU_KEY_PAGEDOWN) {
-                cnt.scroll.x += ctx.style.scrollbar_speed / 3;
+            if (ctx.keyDown & MU_KEY_PAGEUP) {
+                cnt.scroll.x -= ctx.style.scrollbarSpeed / 3;
+            } else if (ctx.keyDown & MU_KEY_PAGEDOWN) {
+                cnt.scroll.x += ctx.style.scrollbarSpeed / 3;
             }
         }
         /* clamp scroll to limits */
         cnt.scroll.x = mu_clamp(cnt.scroll.x, 0, maxscroll);
         thumb.x = mu_clamp(thumb.x, base.x, base.x + base.w - thumb.w);
         /* draw base and thumb */
-        ctx.draw_frame(ctx, base, MU_COLOR_SCROLLBASE);
-        ctx.draw_frame(ctx, thumb, MU_COLOR_SCROLLTHUMB);
+        ctx.drawFrame(ctx, base, MU_COLOR_SCROLLBASE);
+        ctx.drawFrame(ctx, thumb, MU_COLOR_SCROLLTHUMB);
         /* set this as the scroll_target (will get scrolled on mousewheel) */
         /* if the mouse is over it */
         mu_Rect mouse_area = *b;
-        mouse_area.w += ctx.style.scrollbar_size;
-        mouse_area.h += ctx.style.scrollbar_size;
-        if (mu_mouse_over(ctx, mouse_area)) { ctx.scroll_target = cnt; }
+        mouse_area.w += ctx.style.scrollbarSize;
+        mouse_area.h += ctx.style.scrollbarSize;
+        if (mu_mouse_over(ctx, mouse_area)) { ctx.scrollTarget = cnt; }
     } else {
         cnt.scroll.x = 0;
     }
@@ -1593,7 +1682,7 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
     mu_Id id = mu_get_id_str(ctx, title);
     mu_Container* cnt = get_container(ctx, id, opt);
     if (!cnt || !cnt.open) { return MU_RES_NONE; }
-    ctx.id_stack.push(id);
+    ctx.idStack.push(id);
 
     if (cnt.rect.w == 0) { cnt.rect = rect; }
     begin_root_container(ctx, cnt);
@@ -1601,22 +1690,22 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
 
     /* draw frame */
     if (~opt & MU_OPT_NOFRAME) {
-        ctx.draw_frame(ctx, rect, MU_COLOR_WINDOWBG);
+        ctx.drawFrame(ctx, rect, MU_COLOR_WINDOWBG);
     }
 
     /* do title bar */
     if (~opt & MU_OPT_NOTITLE) {
         mu_Rect tr = rect;
-        tr.h = ctx.style.title_height;
-        ctx.draw_frame(ctx, tr, MU_COLOR_TITLEBG);
+        tr.h = ctx.style.titleHeight;
+        ctx.drawFrame(ctx, tr, MU_COLOR_TITLEBG);
         /* do title text */
         if (~opt & MU_OPT_NOTITLE) {
             mu_Id id2 = mu_get_id_str(ctx, "!title"); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
             mu_update_control(ctx, id2, tr, opt);
             if (~opt & MU_OPT_NONAME) { mu_draw_control_text(ctx, title, tr, MU_COLOR_TITLETEXT, opt); }
-            if (id2 == ctx.focus && ctx.mouse_down == MU_MOUSE_LEFT) {
-                cnt.rect.x += ctx.mouse_delta.x;
-                cnt.rect.y += ctx.mouse_delta.y;
+            if (id2 == ctx.focus && ctx.mouseDown == MU_MOUSE_LEFT) {
+                cnt.rect.x += ctx.mouseDelta.x;
+                cnt.rect.y += ctx.mouseDelta.y;
             }
             body.y += tr.h;
             body.h -= tr.h;
@@ -1628,7 +1717,7 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
             tr.w -= r.w;
             mu_draw_icon(ctx, MU_ICON_CLOSE, r, ctx.style.colors[MU_COLOR_TITLETEXT]);
             mu_update_control(ctx, id2, r, opt);
-            if (ctx.mouse_pressed == MU_MOUSE_LEFT && id2 == ctx.focus) { cnt.open = false; }
+            if (ctx.mousePressed == MU_MOUSE_LEFT && id2 == ctx.focus) { cnt.open = false; }
         }
     }
 
@@ -1636,23 +1725,23 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
 
     /* do `resize` handle */
     if (~opt & MU_OPT_NORESIZE) {
-        int sz = ctx.style.scrollbar_size; // RXI, WHY WAS THIS USING THE TITLE HEIGHT?
+        int sz = ctx.style.scrollbarSize; // RXI, WHY WAS THIS USING THE TITLE HEIGHT?
         mu_Id id2 = mu_get_id_str(ctx, "!resize"); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
         mu_Rect r = mu_rect(rect.x + rect.w - sz, rect.y + rect.h - sz, sz, sz);
         mu_update_control(ctx, id2, r, opt);
-        if (id2 == ctx.focus && ctx.mouse_down == MU_MOUSE_LEFT) {
-            cnt.rect.w = mu_max(96, cnt.rect.w + ctx.mouse_delta.x);
-            cnt.rect.h = mu_max(64, cnt.rect.h + ctx.mouse_delta.y);
+        if (id2 == ctx.focus && ctx.mouseDown == MU_MOUSE_LEFT) {
+            cnt.rect.w = mu_max(96, cnt.rect.w + ctx.mouseDelta.x);
+            cnt.rect.h = mu_max(64, cnt.rect.h + ctx.mouseDelta.y);
         }
     }
     /* resize to content size */
     if (opt & MU_OPT_AUTOSIZE) {
         mu_Rect r = get_layout(ctx).body;
-        cnt.rect.w = cnt.content_size.x + (cnt.rect.w - r.w);
-        cnt.rect.h = cnt.content_size.y + (cnt.rect.h - r.h);
+        cnt.rect.w = cnt.contentSize.x + (cnt.rect.w - r.w);
+        cnt.rect.h = cnt.contentSize.y + (cnt.rect.h - r.h);
     }
     /* close if this is a popup window and elsewhere was clicked */
-    if (opt & MU_OPT_POPUP && ctx.mouse_pressed && ctx.hover_root != cnt) { cnt.open = false; }
+    if (opt & MU_OPT_POPUP && ctx.mousePressed && ctx.hoverRoot != cnt) { cnt.open = false; }
     mu_push_clip_rect(ctx, cnt.body);
     return MU_RES_ACTIVE;
 }
@@ -1669,9 +1758,9 @@ void mu_end_window(mu_Context* ctx) {
 void mu_open_popup(mu_Context* ctx, const(char)[] name) {
     mu_Container* cnt = mu_get_container(ctx, name);
     /* set as hover root so popup isn't closed in begin_window_ex() */
-    ctx.hover_root = ctx.next_hover_root = cnt;
+    ctx.hoverRoot = ctx.nextHoverRoot = cnt;
     /* position at mouse cursor, open and bring-to-front */
-    cnt.rect = mu_rect(ctx.mouse_pos.x, ctx.mouse_pos.y, 1, 1);
+    cnt.rect = mu_rect(ctx.mousePos.x, ctx.mousePos.y, 1, 1);
     cnt.open = true;
     mu_bring_to_front(ctx, cnt);
 }
@@ -1688,10 +1777,10 @@ void mu_end_popup(mu_Context* ctx) {
 void mu_begin_panel_ex(mu_Context* ctx, const(char)[] name, mu_OptFlags opt) {
     mu_Container* cnt;
     mu_push_id_str(ctx, name);
-    cnt = get_container(ctx, ctx.last_id, opt);
+    cnt = get_container(ctx, ctx.lastId, opt);
     cnt.rect = mu_layout_next(ctx);
-    if (~opt & MU_OPT_NOFRAME) { ctx.draw_frame(ctx, cnt.rect, MU_COLOR_PANELBG); }
-    ctx.container_stack.push(cnt);
+    if (~opt & MU_OPT_NOFRAME) { ctx.drawFrame(ctx, cnt.rect, MU_COLOR_PANELBG); }
+    ctx.containerStack.push(cnt);
     push_container_body(ctx, cnt, cnt.rect, opt);
     mu_push_clip_rect(ctx, cnt.body);
 }

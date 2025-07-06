@@ -106,22 +106,22 @@ void murl_init(mu_Context* ctx, mu_Font font = null) {
     auto data = cast(Font*) ctx.style.font;
     if (data) {
         ctx.style.size = mu_vec2(data.baseSize * 6, data.baseSize);
-        ctx.style.title_height = data.baseSize + 11;
+        ctx.style.titleHeight = data.baseSize + 11;
         if (data.baseSize <= 16) {
         } else if (data.baseSize <= 64) {
-            ctx.style.control_border_size = 2;
+            ctx.style.controlBorderSize = 2;
             ctx.style.spacing += 4;
             ctx.style.padding += 4;
-            ctx.style.scrollbar_size += 4;
-            ctx.style.scrollbar_speed += 4;
-            ctx.style.thumb_size += 4;
+            ctx.style.scrollbarSize += 4;
+            ctx.style.scrollbarSpeed += 4;
+            ctx.style.thumbSize += 4;
         } else {
-            ctx.style.control_border_size = 3;
+            ctx.style.controlBorderSize = 3;
             ctx.style.spacing += 8;
             ctx.style.padding += 8;
-            ctx.style.scrollbar_size += 8;
-            ctx.style.scrollbar_speed += 8;
-            ctx.style.thumb_size += 8;
+            ctx.style.scrollbarSize += 8;
+            ctx.style.scrollbarSpeed += 8;
+            ctx.style.thumbSize += 8;
         }
     }
 }
@@ -130,8 +130,8 @@ void murl_init(mu_Context* ctx, mu_Font font = null) {
 nothrow @nogc
 void murl_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeightFunc height, mu_Font font = null) {
     murl_init(ctx, font);
-    ctx.text_width = width;
-    ctx.text_height = height;
+    ctx.textWidth = width;
+    ctx.textHeight = height;
 }
 
 /// Handles input events and updates the microui context accordingly.
@@ -149,7 +149,7 @@ void murl_handle_input(mu_Context* ctx) {
     } else {
         scroll = GetMouseWheelMoveV();
     }
-    mu_input_scroll(ctx, cast(int) (scroll.x * -ctx.style.scrollbar_speed), cast(int) (scroll.y * -ctx.style.scrollbar_speed));
+    mu_input_scroll(ctx, cast(int) (scroll.x * -ctx.style.scrollbarSpeed), cast(int) (scroll.y * -ctx.style.scrollbarSpeed));
     mu_input_mousedown(ctx, GetMouseX(), GetMouseY(), IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
     mu_input_mouseup(ctx, GetMouseX(), GetMouseY(), IsMouseButtonReleased(MOUSE_BUTTON_LEFT) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
 
@@ -233,8 +233,8 @@ void murl_draw(mu_Context* ctx) {
                     case MU_ICON_EXPANDED: icon = "-"; break;
                     default: break;
                 }
-                auto ic_width = ctx.text_width(style_font, icon);
-                auto ic_height = ctx.text_height(style_font);
+                auto ic_width = ctx.textWidth(style_font, icon);
+                auto ic_height = ctx.textHeight(style_font);
                 auto ic_rect = cmd.icon.rect;
                 auto ic_diff = mu_vec2(ic_rect.w - ic_width, ic_rect.h - ic_height);
                 if (ic_diff.x < 0) ic_diff.x *= -1;

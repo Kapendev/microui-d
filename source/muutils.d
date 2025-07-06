@@ -29,7 +29,7 @@ mu_ResFlags mu_dmenu_ex(mu_Context* ctx, char[] textbox_buffer, const(char)[]* s
             window_cnt.rect.h = rect.h;
         }
         if (label.length) {
-            mu_layout_row(ctx, 0, ctx.text_width(ctx.style.font, label) + ctx.text_width(ctx.style.font, "  "), -1);
+            mu_layout_row(ctx, 0, ctx.textWidth(ctx.style.font, label) + ctx.textWidth(ctx.style.font, "  "), -1);
             mu_label(ctx, label);
         } else {
             mu_layout_row(ctx, 0, -1);
@@ -63,7 +63,7 @@ mu_ResFlags mu_dmenu_ex(mu_Context* ctx, char[] textbox_buffer, const(char)[]* s
             if (buttonCount > 1) continue;
             first = cast(int) i;
             auto autocomplete_length = item.length;
-            if (ctx.key_pressed & MU_KEY_TAB) {
+            if (ctx.keyPressed & MU_KEY_TAB) {
                 foreach (j, c; item) {
                     textbox_buffer[j] = c;
                     if (j > input.length && mu_is_autocomplete_sep(c)) {

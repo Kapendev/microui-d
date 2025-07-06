@@ -180,22 +180,22 @@ void mupr_init(mu_Context* ctx, mu_Font font = null) {
     if (da) {
         auto data = cast(Font*) &getFontData(*da);
         ctx.style.size = mu_vec2(data.baseSize * 6, data.baseSize);
-        ctx.style.title_height = data.baseSize + 11;
+        ctx.style.titleHeight = data.baseSize + 11;
         if (data.baseSize <= 16) {
         } else if (data.baseSize <= 64) {
-            ctx.style.control_border_size = 2;
+            ctx.style.controlBorderSize = 2;
             ctx.style.spacing += 4;
             ctx.style.padding += 4;
-            ctx.style.scrollbar_size += 4;
-            ctx.style.scrollbar_speed += 4;
-            ctx.style.thumb_size += 4;
+            ctx.style.scrollbarSize += 4;
+            ctx.style.scrollbarSpeed += 4;
+            ctx.style.thumbSize += 4;
         } else {
-            ctx.style.control_border_size = 3;
+            ctx.style.controlBorderSize = 3;
             ctx.style.spacing += 8;
             ctx.style.padding += 8;
-            ctx.style.scrollbar_size += 8;
-            ctx.style.scrollbar_speed += 8;
-            ctx.style.thumb_size += 8;
+            ctx.style.scrollbarSize += 8;
+            ctx.style.scrollbarSpeed += 8;
+            ctx.style.thumbSize += 8;
         }
     }
 }
@@ -204,14 +204,14 @@ void mupr_init(mu_Context* ctx, mu_Font font = null) {
 nothrow @nogc
 void mupr_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeightFunc height, mu_Font font = null) {
     mupr_init(ctx, font);
-    ctx.text_width = width;
-    ctx.text_height = height;
+    ctx.textWidth = width;
+    ctx.textHeight = height;
 }
 
 /// Handles input events and updates the microui context accordingly.
 nothrow @nogc
 void mupr_handle_input(mu_Context* ctx) {
-    mu_input_scroll(ctx, cast(int) (deltaWheel * -ctx.style.scrollbar_speed), cast(int) (deltaWheel * -ctx.style.scrollbar_speed));
+    mu_input_scroll(ctx, cast(int) (deltaWheel * -ctx.style.scrollbarSpeed), cast(int) (deltaWheel * -ctx.style.scrollbarSpeed));
     mu_input_mousedown(ctx, cast(int) mouse.x, cast(int) mouse.y, isPressedMouse(Mouse.left) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
     mu_input_mouseup(ctx, cast(int) mouse.x, cast(int) mouse.y, isReleasedMouse(Mouse.left) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
 
@@ -283,18 +283,42 @@ void mupr_draw(mu_Context* ctx) {
                 break;
             case MU_COMMAND_RECT:
                 // TODO: I guess add something similar to the raylib helper?
+                // TODO: Some of it can be made into a helper function where you just pass stuff and a function maybe.
                 parin_options.color = *(cast(Rgba*) (&cmd.rect.color));
-                if (style_texture && cmd.rect.id && cmd.rect.atlas_rect.w !=0 && cmd.rect.atlas_rect.h !=0) {
-                    parin_options.scale = Vec2(
-                        cmd.rect.rect.w / cast(float) cmd.rect.atlas_rect.w,
-                        cmd.rect.rect.h / cast(float) cmd.rect.atlas_rect.h,
-                    );
-                    drawTextureArea(
-                        *style_texture,
-                        Rect(cmd.rect.atlas_rect.x, cmd.rect.atlas_rect.y, cmd.rect.atlas_rect.w, cmd.rect.atlas_rect.h),
-                        Vec2(cmd.rect.rect.x, cmd.rect.rect.y),
-                        parin_options,
-                    );
+                auto atlas_rect = ctx.style.atlasRects[cmd.rect.id];
+                if (style_texture && atlas_rect.hasSize) {
+                    auto slice_margin = ctx.style.sliceMargins[cmd.rect.id];
+                    auto slice_mode = ctx.style.sliceModes[cmd.rect.id];
+                    foreach (i, part; mu_compute_slice_parts(atlas_rect, cmd.rect.rect, slice_margin)) {
+                        if (slice_mode && !part.isCorner) {
+                            parin_options.scale = Vec2(1, 1);
+                            auto y_count = part.source.h ? part.target.h / part.source.h + 1 : 0;
+                            auto x_count = part.source.w ? part.target.w / part.source.w + 1 : 0;
+                            foreach (y; 0 .. y_count) {
+                                foreach (x; 0 .. x_count) {
+                                    auto source_w = (x != x_count - 1) ? part.source.w : mu_max(0, part.target.w - x * part.source.w);
+                                    auto source_h = (y != y_count - 1) ? part.source.h : mu_max(0, part.target.h - y * part.source.h);
+                                    drawTextureArea(
+                                        *style_texture,
+                                        Rect(part.source.x, part.source.y, source_w, source_h),
+                                        Vec2(part.target.x + x * part.source.w, part.target.y + y * part.source.h),
+                                        parin_options,
+                                    );
+                                }
+                            }
+                        } else {
+                            parin_options.scale = Vec2(
+                                part.target.w / cast(float) part.source.w,
+                                part.target.h / cast(float) part.source.h,
+                            );
+                            drawTextureArea(
+                                *style_texture,
+                                Rect(part.source.x, part.source.y, part.source.w, part.source.h),
+                                Vec2(part.target.x, part.target.y),
+                                parin_options,
+                            );
+                        }
+                    }
                     parin_options.scale = Vec2(1, 1);
                 } else {
                     drawRect(
@@ -312,8 +336,8 @@ void mupr_draw(mu_Context* ctx) {
                     case MU_ICON_EXPANDED: icon = "-"; break;
                     default: break;
                 }
-                auto icon_width = ctx.text_width(style_font, icon);
-                auto icon_height = ctx.text_height(style_font);
+                auto icon_width = ctx.textWidth(style_font, icon);
+                auto icon_height = ctx.textHeight(style_font);
                 auto icon_rect = cmd.icon.rect;
                 auto icon_diff = mu_vec2(icon_rect.w - icon_width, icon_rect.h - icon_height);
                 if (icon_diff.x < 0) icon_diff.x *= -1;
