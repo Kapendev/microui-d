@@ -28,6 +28,10 @@
 ** IN THE SOFTWARE.
 */
 
+// TODO: MAYBE MAKE ONE MORE SLICE-9 HELPER BASED ON MUPR THING.
+// TODO: UPDATE MURL!!
+// TODO: MAKE WRAPPER WITH GLOBAL CONTEXT AND D LOOKING SYMBOLS!!
+// TODO: CHANGE NAMING IN MUPR AND MURL TO THE THEIR STYLE!!
 // TODO: Add more doc comments.
 // TODO: work on attributes maybe.
 
@@ -91,6 +95,9 @@ enum MU_SLIDER_FMT          = "%.2f";                /// Format string used for 
 enum MU_MAX_FMT             = 127;                   /// Max length of any formatted string.
 enum MU_COMMON_COLOR_SHIFT  = -12;                   /// The common shift value used for the base color of a control.
 
+enum MU_BLACK = mu_Color(0  ,   0,   0, 255); /// Black.
+enum MU_WHITE = mu_Color(255, 255, 255, 255); /// White.
+
 enum MU_STR_SIZE = (cast(int) MU_COMMAND_SIZE) - (cast(int) mu_TextCommand.sizeof) + 1; /// Maximum length of command strings.
 static assert(MU_STR_SIZE > 0, "Type `mu_TextCommand` must fit within `MU_COMMAND_SIZE` bytes (used for embedded strings).");
 
@@ -137,7 +144,7 @@ enum : mu_IconEnum {
     MU_ICON_MAX,       /// Number of icon types.
 }
 
-// TODO(Kapendev): I think it needs more stuff here. Not just buttons.
+// TODO(Kapendev): I think it needs more things. Not just buttons. Add them when people (mostly me) need them because right now I have no idea what to add.
 enum : mu_AtlasEnum {
     MU_ATLAS_NONE,        /// No atlas rectangle.
     MU_ATLAS_BUTTON,      /// Default button atlas rectangle.
@@ -164,8 +171,8 @@ enum : mu_OptFlags {
     MU_OPT_NOCLOSE      = (1 << 6),  /// Remove close button from window.
     MU_OPT_NOTITLE      = (1 << 7),  /// Remove title bar from window.
     MU_OPT_HOLDFOCUS    = (1 << 8),  /// Keep control focused after click.
-    MU_OPT_AUTOSIZE     = (1 << 9),  /// Automatically size to content.
-    MU_OPT_POPUP        = (1 << 10), /// Mark as popup (e.g., closed on mouse click).
+    MU_OPT_AUTOSIZE     = (1 << 9),  /// Window automatically sizes to content. Implies `MU_OPT_NORESIZE` and `MU_OPT_NOSCROLL`.
+    MU_OPT_POPUP        = (1 << 10), /// Marks window as popup (e.g., closed on mouse click).
     MU_OPT_CLOSED       = (1 << 11), /// Window starts closed.
     MU_OPT_EXPANDED     = (1 << 12), /// Window starts expanded.
     MU_OPT_NONAME       = (1 << 13), /// Hides window name.
@@ -309,6 +316,8 @@ struct mu_Rect {
 
 /// A 2D vector using ints.
 struct mu_Vec2 { int x, y; }
+/// A 2D vector using floats.
+struct mu_FVec2 { mu_Real x = 0, y = 0; }
 /// A set of 4 integer margins for left, top, right, and bottom.
 struct mu_Margin { int left, top, right, bottom; }
 /// A part of a 9-slice with source and target rectangles for drawing.
@@ -379,11 +388,11 @@ struct mu_Style {
     int padding;                                     /// The padding around UI controls.
     int spacing;                                     /// The spacing between UI controls.
     int indent;                                      /// The indent of UI controls.
+    int border;                                      /// The border of UI controls.
     int titleHeight;                                 /// The height of the window title bar.
     int scrollbarSize;                               /// The size of the scrollbar.
     int scrollbarSpeed;                              /// The speed of the scrollbar.
     int thumbSize;                                   /// The size of the thumb.
-    int controlBorderSize;                           /// The size of the border.
     mu_Array!(mu_Color, MU_COLOR_MAX) colors;        /// The array of colors used in the UI.
     mu_Array!(mu_Rect, MU_ATLAS_MAX) atlasRects;     /// Optional array of control atlas rectangles used in the UI.
     mu_Array!(mu_Rect, MU_ICON_MAX) iconAtlasRects;  /// Optional array of icon atlas rectangles used in the UI.
@@ -447,8 +456,8 @@ private @trusted {
         mu_draw_rect(ctx, rect, ctx.style.colors[colorid], atlasid);
         if (colorid == MU_COLOR_SCROLLBASE || colorid == MU_COLOR_SCROLLTHUMB || colorid == MU_COLOR_TITLEBG) return;
         /* draw border */
-        if (ctx.style.colors[MU_COLOR_BORDER].a && rect.hasSize) {
-            foreach (i; 1 .. ctx.style.controlBorderSize + 1) {
+        if (ctx.style.border && rect.hasSize) {
+            foreach (i; 1 .. ctx.style.border + 1) {
                 mu_draw_box(ctx, mu_expand_rect(rect, i), ctx.style.colors[MU_COLOR_BORDER]);
             }
         }
@@ -662,6 +671,10 @@ pragma(inline, true) @safe nothrow @nogc pure {
         return mu_Vec2(x, y);
     }
 
+    mu_FVec2 mu_fvec2(mu_Real x, mu_Real y) {
+        return mu_FVec2(x, y);
+    }
+
     mu_Rect mu_rect(int x, int y, int w, int h) {
         return mu_Rect(x, y, w, h);
     }
@@ -785,10 +798,10 @@ void mu_init(mu_Context* ctx, mu_Font font = null) {
     ctx.textWidth = &mu_temp_text_width_func;
     ctx.textHeight = &mu_temp_text_height_func;
     ctx._style = mu_Style(
-        /* font | atlas | size | padding | spacing | indent */
-        null, null, mu_Vec2(68, 10), 5, 4, 24,
-        /* titleHeight | scrollbarSize | scrollbarSpeed | thumbSize | controlBorderSize */
-        24, 12, 30, 8, 1,
+        /* font | atlas | size | padding | spacing | indent | border */
+        null, null, mu_Vec2(68, 10), 5, 4, 24, 1,
+        /* titleHeight | scrollbarSize | scrollbarSpeed | thumbSize */
+        24, 12, 30, 8,
         mu_Array!(mu_Color, 14)(
             mu_Color(230, 230, 230, 255), /* MU_COLOR_TEXT */
             mu_Color(25,  25,  25,  255), /* MU_COLOR_BORDER */
@@ -1263,13 +1276,13 @@ bool mu_mouse_over(mu_Context* ctx, mu_Rect rect) {
 void mu_update_control(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_OptFlags opt) {
     bool mouseover = mu_mouse_over(ctx, rect);
 
-    if (ctx.focus == 0 && opt & MU_OPT_DEFAULTFOCUS) { mu_set_focus(ctx, id); }
+    if (opt & MU_OPT_DEFAULTFOCUS) { mu_set_focus(ctx, id); }
 
     if (ctx.focus == id) { ctx.updatedFocus = true; }
     if (opt & MU_OPT_NOINTERACT) { return; }
     if (mouseover && !ctx.mouseDown) { ctx.hover = id; }
-    if (ctx.focus == id) {
-        if (ctx.mousePressed && !mouseover && ~opt & MU_OPT_DEFAULTFOCUS) { mu_set_focus(ctx, 0); }
+    if (ctx.focus == id && ~opt & MU_OPT_DEFAULTFOCUS) {
+        if (ctx.mousePressed && !mouseover) { mu_set_focus(ctx, 0); }
         if (!ctx.mouseDown && ~opt & MU_OPT_HOLDFOCUS) { mu_set_focus(ctx, 0); }
     }
     if (ctx.hover == id) {
@@ -1332,7 +1345,14 @@ mu_ResFlags mu_button_ex_legacy(mu_Context* ctx, const(char)[] label, mu_IconEnu
     mu_Rect r = mu_layout_next(ctx);
     mu_update_control(ctx, id, r, opt);
     /* handle click */
-    if (ctx.mousePressed == MU_MOUSE_LEFT && ctx.focus == id) { res |= MU_RES_SUBMIT; }
+    if (ctx.focus == id) {
+        if (opt & MU_OPT_DEFAULTFOCUS) {
+            // TODO: TEST THIS!
+            if (ctx.keyPressed == MU_KEY_RETURN || (ctx.hover == id && ctx.mousePressed == MU_MOUSE_LEFT)) { res |= MU_RES_SUBMIT; }
+        } else {
+            if (ctx.mousePressed == MU_MOUSE_LEFT) { res |= MU_RES_SUBMIT; }
+        }
+    }
     /* draw */
     mu_draw_control_frame(ctx, id, r, MU_COLOR_BUTTON, opt, MU_ATLAS_BUTTON);
     if (label.ptr) { mu_draw_control_text(ctx, label, r, MU_COLOR_TEXT, opt); }
@@ -1590,6 +1610,7 @@ void mu_scrollbar_y(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
         thumb.y += cnt.scroll.y * (base.h - thumb.h) / maxscroll;
         /* handle input */
         mu_update_control(ctx, id, base, 0);
+        // TODO: SOMETHING IS NOT RIGHT ABOUT SCROLLING. TEST DMENU AND MULTIPLE WINDOWS. ITS NOT REALLY THE DEFAULTFOCUS.
         if (ctx.focus == id && ctx.mouseDown == MU_MOUSE_LEFT) {
             if (ctx.mousePressed == MU_MOUSE_LEFT) {
                 cnt.scroll.y = ((ctx.mousePos.y - base.y - thumb.h / 2) * maxscroll) / (base.h - thumb.h);
@@ -1597,7 +1618,7 @@ void mu_scrollbar_y(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
                 cnt.scroll.y += ctx.mouseDelta.y * cs.y / base.h;
             }
         }
-        if (cnt.zIndex == ctx.lastZIndex && ~ctx.keyDown & MU_KEY_SHIFT) {
+        if (cnt.zIndex >= ctx.lastZIndex && ~ctx.keyDown & MU_KEY_SHIFT) {
             if (ctx.keyPressed & MU_KEY_HOME) {
                 cnt.scroll.y = 0;
             } else if (ctx.keyPressed & MU_KEY_END) {
@@ -1641,6 +1662,7 @@ void mu_scrollbar_x(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
         thumb.x += cnt.scroll.x * (base.w - thumb.w) / maxscroll;
         /* handle input */
         mu_update_control(ctx, id, base, 0);
+        // TODO: SOMETHING IS NOT RIGHT ABOUT SCROLLING. TEST DMENU AND MULTIPLE WINDOWS. ITS NOT REALLY THE DEFAULTFOCUS.
         if (ctx.focus == id && ctx.mouseDown == MU_MOUSE_LEFT) {
             if (ctx.mousePressed == MU_MOUSE_LEFT) {
                 cnt.scroll.x = ((ctx.mousePos.x - base.x - thumb.w / 2) * maxscroll) / (base.w - thumb.w);
@@ -1648,7 +1670,7 @@ void mu_scrollbar_x(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
                 cnt.scroll.x += ctx.mouseDelta.x * cs.x / base.w;
             }
         }
-        if (cnt.zIndex == ctx.lastZIndex && ctx.keyDown & MU_KEY_SHIFT) {
+        if (cnt.zIndex >= ctx.lastZIndex && ctx.keyDown & MU_KEY_SHIFT) {
             if (ctx.keyPressed & MU_KEY_HOME) {
                 cnt.scroll.x = 0;
             } else if (ctx.keyPressed & MU_KEY_END) {
@@ -1678,6 +1700,8 @@ void mu_scrollbar_x(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
 }
 
 mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rect, mu_OptFlags opt) {
+    if (opt & MU_OPT_AUTOSIZE) { opt |= MU_OPT_NORESIZE | MU_OPT_NOSCROLL; }
+
     mu_Rect body;
     mu_Id id = mu_get_id_str(ctx, title);
     mu_Container* cnt = get_container(ctx, id, opt);
@@ -1766,7 +1790,7 @@ void mu_open_popup(mu_Context* ctx, const(char)[] name) {
 }
 
 mu_ResFlags mu_begin_popup(mu_Context* ctx, const(char)[] name) {
-    mu_OptFlags opt = MU_OPT_POPUP | MU_OPT_AUTOSIZE | MU_OPT_NORESIZE | MU_OPT_NOSCROLL | MU_OPT_NOTITLE | MU_OPT_CLOSED;
+    mu_OptFlags opt = MU_OPT_POPUP | MU_OPT_AUTOSIZE | MU_OPT_NOTITLE | MU_OPT_CLOSED;
     return mu_begin_window_ex(ctx, name, mu_rect(0, 0, 0, 0), opt);
 }
 
@@ -1792,4 +1816,76 @@ void mu_begin_panel(mu_Context* ctx, const(char)[] name) {
 void mu_end_panel(mu_Context* ctx) {
     mu_pop_clip_rect(ctx);
     pop_container(ctx);
+}
+
+void mu_open_dmenu(mu_Context* ctx) {
+    auto cnt = mu_get_container(ctx, "!dmenu");
+    cnt.open = true;
+}
+
+mu_ResFlags mu_begin_dmenu(mu_Context* ctx, const(char)[]* selection, const(const(char)[])[] items, mu_Vec2 canvas, const(char)[] label = "", mu_FVec2 scale = mu_FVec2(0.5f, 0.7f)) {
+    static char[MU_INPUTTEXT_SIZE] input_buffer = '\0';
+
+    auto result = MU_RES_NONE;
+    auto size = mu_vec2(cast(int) (canvas.x * scale.x), cast(int) (canvas.y * scale.y));
+    auto rect = mu_rect(canvas.x / 2 - size.x / 2, canvas.y / 2 - size.y / 2,  size.x, size.y);
+    if (mu_begin_window_ex(ctx, "!dmenu", rect, MU_OPT_NOCLOSE | MU_OPT_NORESIZE | MU_OPT_NOTITLE)) {
+        result |= MU_RES_ACTIVE;
+        auto window_cnt = mu_get_current_container(ctx);
+        if (label.length) {
+            mu_layout_row(ctx, 0, ctx.textWidth(ctx.style.font, label) + ctx.textWidth(ctx.style.font, "  "), -1);
+            mu_label(ctx, label);
+        } else {
+            mu_layout_row(ctx, 0, -1);
+        }
+
+        size_t input_length;
+        auto input_result = mu_textbox_ex(ctx, input_buffer, MU_OPT_DEFAULTFOCUS, &input_length);
+        auto input = input_buffer[0 .. input_length];
+        auto pick = -1;
+        auto first = -1;
+        auto buttonCount = 0;
+        mu_layout_row(ctx, -1, -1);
+
+        mu_begin_panel(ctx, "!dmenupanel");
+        mu_layout_row(ctx, 0, -1);
+        auto panel_cnt = mu_get_current_container(ctx);
+        if (input_result & MU_RES_CHANGE) panel_cnt.scroll.y = 0;
+        foreach (i, item; items) {
+            auto starts_with_input = input.length == 0 || (item.length < input.length ? false : item[0 .. input.length] == input);
+            // Draw the item.
+            if (!starts_with_input) continue;
+            buttonCount += 1;
+            if (mu_button_ex(ctx, item, 0, 0)) pick = cast(int) i;
+            // Do autocomplete.
+            if (buttonCount > 1) continue;
+            first = cast(int) i;
+            auto autocomplete_length = item.length;
+            if (ctx.keyPressed & MU_KEY_TAB) {
+                foreach (j, c; item) {
+                    input_buffer[j] = c;
+                    if (j > input.length && mu_is_autocomplete_sep(c)) {
+                        autocomplete_length = j;
+                        break;
+                    }
+                }
+                input_buffer[autocomplete_length] = '\0';
+            }
+        }
+        mu_end_panel(ctx);
+
+        if (items.length && input_result & MU_RES_SUBMIT) pick = first;
+        if (pick >= 0) {
+            result |= MU_RES_SUBMIT;
+            input_buffer[0] = '\0';
+            panel_cnt.scroll.y = 0;
+            window_cnt.open = false;
+            *selection = items[pick];
+        }
+    }
+    return result;
+}
+
+void mu_end_dmenu(mu_Context* ctx) {
+    mu_end_window(ctx);
 }

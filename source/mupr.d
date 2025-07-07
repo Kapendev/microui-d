@@ -180,17 +180,17 @@ void mupr_init(mu_Context* ctx, mu_Font font = null) {
     if (da) {
         auto data = cast(Font*) &getFontData(*da);
         ctx.style.size = mu_vec2(data.baseSize * 6, data.baseSize);
-        ctx.style.titleHeight = data.baseSize + 11;
+        ctx.style.titleHeight = data.baseSize + 5;
         if (data.baseSize <= 16) {
         } else if (data.baseSize <= 64) {
-            ctx.style.controlBorderSize = 2;
+            ctx.style.border = 2;
             ctx.style.spacing += 4;
             ctx.style.padding += 4;
             ctx.style.scrollbarSize += 4;
             ctx.style.scrollbarSpeed += 4;
             ctx.style.thumbSize += 4;
         } else {
-            ctx.style.controlBorderSize = 3;
+            ctx.style.border = 3;
             ctx.style.spacing += 8;
             ctx.style.padding += 8;
             ctx.style.scrollbarSize += 8;

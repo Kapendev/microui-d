@@ -1,7 +1,7 @@
-# 🔩 microui-D
+# 🔩 microui-d
 
 A tiny and portable immediate-mode UI library written in D.
-Microui-D is a complete rewrite of [rxi's microui](https://github.com/rxi/microui).
+Microui-d is a complete rewrite of [rxi's microui](https://github.com/rxi/microui).
 It's 90% the same library, but with bug fixes, sprite support, and other D-specific improvements.
 
 ## Major Features
