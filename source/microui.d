@@ -28,10 +28,6 @@
 ** IN THE SOFTWARE.
 */
 
-// TODO: MAYBE MAKE ONE MORE SLICE-9 HELPER BASED ON MUPR THING.
-// TODO: UPDATE MURL!!
-// TODO: MAKE WRAPPER WITH GLOBAL CONTEXT AND D LOOKING SYMBOLS!!
-// TODO: CHANGE NAMING IN MUPR AND MURL TO THE THEIR STYLE!!
 // TODO: Add more doc comments.
 // TODO: work on attributes maybe.
 
@@ -144,7 +140,7 @@ enum : mu_IconEnum {
     MU_ICON_MAX,       /// Number of icon types.
 }
 
-// TODO(Kapendev): I think it needs more things. Not just buttons. Add them when people (mostly me) need them because right now I have no idea what to add.
+// TODO(Kapendev): I think it needs more things. Add them when people (mostly me) need them because right now I have no idea what to add.
 enum : mu_AtlasEnum {
     MU_ATLAS_NONE,        /// No atlas rectangle.
     MU_ATLAS_BUTTON,      /// Default button atlas rectangle.
@@ -320,8 +316,15 @@ struct mu_Vec2 { int x, y; }
 struct mu_FVec2 { mu_Real x = 0, y = 0; }
 /// A set of 4 integer margins for left, top, right, and bottom.
 struct mu_Margin { int left, top, right, bottom; }
+
 /// A part of a 9-slice with source and target rectangles for drawing.
-struct mu_SlicePart { mu_Rect source, target; bool isCorner; }
+struct mu_SlicePart {
+    mu_Rect source;
+    mu_Rect target;
+    bool isCorner;
+    bool canTile;
+    mu_Vec2 tileCount;
+}
 /// The parts of a 9-slice.
 alias mu_SliceParts = mu_Array!(mu_SlicePart, 9);
 
@@ -392,6 +395,7 @@ struct mu_Style {
     int titleHeight;                                 /// The height of the window title bar.
     int scrollbarSize;                               /// The size of the scrollbar.
     int scrollbarSpeed;                              /// The speed of the scrollbar.
+    int scrollbarKeySpeed;                           /// The speed of the scrollbar key.
     int thumbSize;                                   /// The size of the thumb.
     mu_Array!(mu_Color, MU_COLOR_MAX) colors;        /// The array of colors used in the UI.
     mu_Array!(mu_Rect, MU_ATLAS_MAX) atlasRects;     /// Optional array of control atlas rectangles used in the UI.
@@ -711,12 +715,12 @@ pragma(inline, true) @safe nothrow @nogc pure {
 
     @trusted
     mu_SliceParts mu_compute_slice_parts(mu_Rect source, mu_Rect target, mu_Margin margin) {
-        if (!source.hasSize || !target.hasSize) return mu_SliceParts();
-        mu_SliceParts result = void;
+        mu_SliceParts result;
+        if (!source.hasSize || !target.hasSize) return result;
         auto can_clip_w = target.w - source.w < -margin.left - margin.right;
         auto can_clip_h = target.h - source.h < -margin.top - margin.bottom;
 
-        // -- 1 --
+        // -- 1
         result[0].source.x  = source.x;                                              result[0].source.y = source.y;
         result[0].source.w  = margin.left;                                           result[0].source.h = margin.top;
         result[0].target.x  = target.x;                                              result[0].target.y = target.y;
@@ -727,7 +731,7 @@ pragma(inline, true) @safe nothrow @nogc pure {
         result[1].source.w  = source.w - margin.left - margin.right;                 result[1].source.h = result[0].source.h;
         result[1].target.x  = target.x + margin.left;                                result[1].target.y = result[0].target.y;
         result[1].target.w  = target.w - margin.left - margin.right;                 result[1].target.h = result[0].target.h;
-        result[1].isCorner = false;
+        result[1].canTile = true;
 
         result[2].source.x  = source.x + result[0].source.w + result[1].source.w;    result[2].source.y = result[0].source.y;
         result[2].source.w  = margin.right;                                          result[2].source.h = result[0].source.h;
@@ -735,26 +739,26 @@ pragma(inline, true) @safe nothrow @nogc pure {
         result[2].target.w  = margin.right;                                          result[2].target.h = result[0].target.h;
         result[2].isCorner = true;
 
-        // -- 2 --
+        // -- 2
         result[3].source.x  = result[0].source.x;                                    result[3].source.y = source.y + margin.top;
         result[3].source.w  = result[0].source.w;                                    result[3].source.h = source.h - margin.top - margin.bottom;
         result[3].target.x  = result[0].target.x;                                    result[3].target.y = target.y + margin.top;
         result[3].target.w  = result[0].target.w;                                    result[3].target.h = target.h - margin.top - margin.bottom;
-        result[3].isCorner = false;
+        result[3].canTile = true;
 
         result[4].source.x  = result[1].source.x;                                    result[4].source.y = result[3].source.y;
         result[4].source.w  = result[1].source.w;                                    result[4].source.h = result[3].source.h;
         result[4].target.x  = result[1].target.x;                                    result[4].target.y = result[3].target.y;
         result[4].target.w  = result[1].target.w;                                    result[4].target.h = result[3].target.h;
-        result[4].isCorner = false;
+        result[4].canTile = true;
 
         result[5].source.x  = result[2].source.x;                                    result[5].source.y = result[3].source.y;
         result[5].source.w  = result[2].source.w;                                    result[5].source.h = result[3].source.h;
         result[5].target.x  = result[2].target.x;                                    result[5].target.y = result[3].target.y;
         result[5].target.w  = result[2].target.w;                                    result[5].target.h = result[3].target.h;
-        result[5].isCorner = false;
+        result[5].canTile = true;
 
-        // -- 3 --
+        // -- 3
         result[6].source.x  = result[0].source.x;                                    result[6].source.y = source.y + margin.top + result[3].source.h;
         result[6].source.w  = result[0].source.w;                                    result[6].source.h = margin.bottom;
         result[6].target.x  = result[0].target.x;                                    result[6].target.y = target.y + margin.top + result[3].target.h;
@@ -765,7 +769,7 @@ pragma(inline, true) @safe nothrow @nogc pure {
         result[7].source.w  = result[1].source.w;                                    result[7].source.h = result[6].source.h;
         result[7].target.x  = result[1].target.x;                                    result[7].target.y = result[6].target.y;
         result[7].target.w  = result[1].target.w;                                    result[7].target.h = result[6].target.h;
-        result[7].isCorner = false;
+        result[7].canTile = true;
 
         result[8].source.x  = result[2].source.x;                                    result[8].source.y = result[6].source.y;
         result[8].source.w  = result[2].source.w;                                    result[8].source.h = result[6].source.h;
@@ -785,6 +789,16 @@ pragma(inline, true) @safe nothrow @nogc pure {
                 item.target.h = target.h;
             }
         }
+        result[1].tileCount.x = result[1].source.w ? result[1].target.w / result[1].source.w + 1 : 0;
+        result[1].tileCount.y = result[1].source.h ? result[1].target.h / result[1].source.h + 1 : 0;
+        result[3].tileCount.x = result[3].source.w ? result[3].target.w / result[3].source.w + 1 : 0;
+        result[3].tileCount.y = result[3].source.h ? result[3].target.h / result[3].source.h + 1 : 0;
+        result[4].tileCount.x = result[4].source.w ? result[4].target.w / result[4].source.w + 1 : 0;
+        result[4].tileCount.y = result[4].source.h ? result[4].target.h / result[4].source.h + 1 : 0;
+        result[5].tileCount.x = result[5].source.w ? result[5].target.w / result[5].source.w + 1 : 0;
+        result[5].tileCount.y = result[5].source.h ? result[5].target.h / result[5].source.h + 1 : 0;
+        result[7].tileCount.x = result[7].source.w ? result[7].target.w / result[7].source.w + 1 : 0;
+        result[7].tileCount.y = result[7].source.h ? result[7].target.h / result[7].source.h + 1 : 0;
         return result;
     }
 }
@@ -800,8 +814,8 @@ void mu_init(mu_Context* ctx, mu_Font font = null) {
     ctx._style = mu_Style(
         /* font | atlas | size | padding | spacing | indent | border */
         null, null, mu_Vec2(68, 10), 5, 4, 24, 1,
-        /* titleHeight | scrollbarSize | scrollbarSpeed | thumbSize */
-        24, 12, 30, 8,
+        /* titleHeight | scrollbarSize | scrollbarSpeed | scrollbarKeySpeed | thumbSize */
+        24, 12, 30, cast(int) (30 * 0.4f), 8,
         mu_Array!(mu_Color, 14)(
             mu_Color(230, 230, 230, 255), /* MU_COLOR_TEXT */
             mu_Color(25,  25,  25,  255), /* MU_COLOR_BORDER */
@@ -1022,8 +1036,8 @@ void mu_input_mouseup(mu_Context* ctx, int x, int y, mu_MouseFlags btn) {
 
 nothrow @nogc
 void mu_input_scroll(mu_Context* ctx, int x, int y) {
-    ctx.scrollDelta.x += x;
-    ctx.scrollDelta.y += y;
+    ctx.scrollDelta.x += x * -ctx.style.scrollbarSpeed;
+    ctx.scrollDelta.y += y * -ctx.style.scrollbarSpeed;
 }
 
 nothrow @nogc
@@ -1276,7 +1290,7 @@ bool mu_mouse_over(mu_Context* ctx, mu_Rect rect) {
 void mu_update_control(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_OptFlags opt) {
     bool mouseover = mu_mouse_over(ctx, rect);
 
-    if (opt & MU_OPT_DEFAULTFOCUS) { mu_set_focus(ctx, id); }
+    if (ctx.focus == 0 && opt & MU_OPT_DEFAULTFOCUS) { mu_set_focus(ctx, id); }
 
     if (ctx.focus == id) { ctx.updatedFocus = true; }
     if (opt & MU_OPT_NOINTERACT) { return; }
@@ -1347,7 +1361,6 @@ mu_ResFlags mu_button_ex_legacy(mu_Context* ctx, const(char)[] label, mu_IconEnu
     /* handle click */
     if (ctx.focus == id) {
         if (opt & MU_OPT_DEFAULTFOCUS) {
-            // TODO: TEST THIS!
             if (ctx.keyPressed == MU_KEY_RETURN || (ctx.hover == id && ctx.mousePressed == MU_MOUSE_LEFT)) { res |= MU_RES_SUBMIT; }
         } else {
             if (ctx.mousePressed == MU_MOUSE_LEFT) { res |= MU_RES_SUBMIT; }
@@ -1599,7 +1612,7 @@ void mu_scrollbar_y(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
     /* only add scrollbar if content size is larger than body */
     int maxscroll = cs.y - b.h;
     if (maxscroll > 0 && b.h > 0) {
-        mu_Rect base, thumb;
+        mu_Rect base, thumb, mouse_area;
         mu_Id id = mu_get_id_str(ctx, "!scrollbary");
         /* get sizing/positioning */
         base = *b;
@@ -1608,9 +1621,11 @@ void mu_scrollbar_y(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
         thumb = base;
         thumb.h = mu_max(ctx.style.thumbSize, base.h * b.h / cs.y);
         thumb.y += cnt.scroll.y * (base.h - thumb.h) / maxscroll;
+        mouse_area = *b;
+        mouse_area.w += ctx.style.scrollbarSize;
+        mouse_area.h += ctx.style.scrollbarSize;
         /* handle input */
         mu_update_control(ctx, id, base, 0);
-        // TODO: SOMETHING IS NOT RIGHT ABOUT SCROLLING. TEST DMENU AND MULTIPLE WINDOWS. ITS NOT REALLY THE DEFAULTFOCUS.
         if (ctx.focus == id && ctx.mouseDown == MU_MOUSE_LEFT) {
             if (ctx.mousePressed == MU_MOUSE_LEFT) {
                 cnt.scroll.y = ((ctx.mousePos.y - base.y - thumb.h / 2) * maxscroll) / (base.h - thumb.h);
@@ -1618,16 +1633,17 @@ void mu_scrollbar_y(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
                 cnt.scroll.y += ctx.mouseDelta.y * cs.y / base.h;
             }
         }
-        if (cnt.zIndex >= ctx.lastZIndex && ~ctx.keyDown & MU_KEY_SHIFT) {
+        // TODO: Containers inside containers don't work that well. Fix later.
+        if ((ctx.focus == id || cnt.zIndex >= ctx.lastZIndex) && ~ctx.keyDown & MU_KEY_SHIFT) {
             if (ctx.keyPressed & MU_KEY_HOME) {
                 cnt.scroll.y = 0;
             } else if (ctx.keyPressed & MU_KEY_END) {
                 cnt.scroll.y = maxscroll;
             }
             if (ctx.keyDown & MU_KEY_PAGEUP) {
-                cnt.scroll.y -= ctx.style.scrollbarSpeed / 3;
+                cnt.scroll.y -= ctx.style.scrollbarKeySpeed;
             } else if (ctx.keyDown & MU_KEY_PAGEDOWN) {
-                cnt.scroll.y += ctx.style.scrollbarSpeed / 3;
+                cnt.scroll.y += ctx.style.scrollbarKeySpeed;
             }
         }
         /* clamp scroll to limits */
@@ -1638,9 +1654,6 @@ void mu_scrollbar_y(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
         ctx.drawFrame(ctx, thumb, MU_COLOR_SCROLLTHUMB);
         /* set this as the scroll target (will get scrolled on mousewheel) */
         /* if the mouse is over it */
-        mu_Rect mouse_area = *b;
-        mouse_area.w += ctx.style.scrollbarSize;
-        mouse_area.h += ctx.style.scrollbarSize;
         if (mu_mouse_over(ctx, mouse_area)) { ctx.scrollTarget = cnt; }
     } else {
         cnt.scroll.y = 0;
@@ -1651,7 +1664,7 @@ void mu_scrollbar_x(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
     /* only add scrollbar if content size is larger than body */
     int maxscroll = cs.x - b.w;
     if (maxscroll > 0 && b.w > 0) {
-        mu_Rect base, thumb;
+        mu_Rect base, thumb, mouse_area;
         mu_Id id = mu_get_id_str(ctx, "!scrollbarx");
         /* get sizing/positioning */
         base = *b;
@@ -1660,9 +1673,11 @@ void mu_scrollbar_x(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
         thumb = base;
         thumb.w = mu_max(ctx.style.thumbSize, base.w * b.w / cs.x);
         thumb.x += cnt.scroll.x * (base.w - thumb.w) / maxscroll;
+        mouse_area = *b;
+        mouse_area.w += ctx.style.scrollbarSize;
+        mouse_area.h += ctx.style.scrollbarSize;
         /* handle input */
         mu_update_control(ctx, id, base, 0);
-        // TODO: SOMETHING IS NOT RIGHT ABOUT SCROLLING. TEST DMENU AND MULTIPLE WINDOWS. ITS NOT REALLY THE DEFAULTFOCUS.
         if (ctx.focus == id && ctx.mouseDown == MU_MOUSE_LEFT) {
             if (ctx.mousePressed == MU_MOUSE_LEFT) {
                 cnt.scroll.x = ((ctx.mousePos.x - base.x - thumb.w / 2) * maxscroll) / (base.w - thumb.w);
@@ -1670,16 +1685,17 @@ void mu_scrollbar_x(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
                 cnt.scroll.x += ctx.mouseDelta.x * cs.x / base.w;
             }
         }
-        if (cnt.zIndex >= ctx.lastZIndex && ctx.keyDown & MU_KEY_SHIFT) {
+        // TODO: Containers inside containers don't work that well. Fix later.
+        if ((ctx.focus == id || cnt.zIndex >= ctx.lastZIndex) && ctx.keyDown & MU_KEY_SHIFT) {
             if (ctx.keyPressed & MU_KEY_HOME) {
                 cnt.scroll.x = 0;
             } else if (ctx.keyPressed & MU_KEY_END) {
                 cnt.scroll.x = maxscroll;
             }
             if (ctx.keyDown & MU_KEY_PAGEUP) {
-                cnt.scroll.x -= ctx.style.scrollbarSpeed / 3;
+                cnt.scroll.x -= ctx.style.scrollbarKeySpeed;
             } else if (ctx.keyDown & MU_KEY_PAGEDOWN) {
-                cnt.scroll.x += ctx.style.scrollbarSpeed / 3;
+                cnt.scroll.x += ctx.style.scrollbarKeySpeed;
             }
         }
         /* clamp scroll to limits */
@@ -1690,9 +1706,6 @@ void mu_scrollbar_x(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
         ctx.drawFrame(ctx, thumb, MU_COLOR_SCROLLTHUMB);
         /* set this as the scroll_target (will get scrolled on mousewheel) */
         /* if the mouse is over it */
-        mu_Rect mouse_area = *b;
-        mouse_area.w += ctx.style.scrollbarSize;
-        mouse_area.h += ctx.style.scrollbarSize;
         if (mu_mouse_over(ctx, mouse_area)) { ctx.scrollTarget = cnt; }
     } else {
         cnt.scroll.x = 0;
@@ -1847,10 +1860,8 @@ mu_ResFlags mu_begin_dmenu(mu_Context* ctx, const(char)[]* selection, const(cons
         auto buttonCount = 0;
         mu_layout_row(ctx, -1, -1);
 
-        mu_begin_panel(ctx, "!dmenupanel");
+        mu_begin_panel_ex(ctx, "!dmenupanel", MU_OPT_NOSCROLL);
         mu_layout_row(ctx, 0, -1);
-        auto panel_cnt = mu_get_current_container(ctx);
-        if (input_result & MU_RES_CHANGE) panel_cnt.scroll.y = 0;
         foreach (i, item; items) {
             auto starts_with_input = input.length == 0 || (item.length < input.length ? false : item[0 .. input.length] == input);
             // Draw the item.
@@ -1878,7 +1889,6 @@ mu_ResFlags mu_begin_dmenu(mu_Context* ctx, const(char)[]* selection, const(cons
         if (pick >= 0) {
             result |= MU_RES_SUBMIT;
             input_buffer[0] = '\0';
-            panel_cnt.scroll.y = 0;
             window_cnt.open = false;
             *selection = items[pick];
         }

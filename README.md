@@ -6,7 +6,7 @@ It's 90% the same library, but with bug fixes, sprite support, and other D-speci
 
 ## Major Features
 
-* Around `1800 sloc` of D
+* Around `2000 sloc` of D
 * Easily extensible
 * Simple layout system
 * Works within a fixed memory region
@@ -18,29 +18,25 @@ It's 90% the same library, but with bug fixes, sprite support, and other D-speci
 ## Hello World Example
 
 ```d
-import murl; // Equivalent to `import microui`, with additional helper functions for raylib.
+import murl; // Equivalent to `import microuid`, with additional helper functions for raylib.
 import raylib;
 
 void main() {
-    // Create the window and the UI context.
+    // Create the window and UI context.
     InitWindow(800, 600, "raylib + microui");
     auto font = GetFontDefault();
-    auto ctx = new mu_Context();
-    murl_init(ctx, &font);
+    readyUi(&font);
 
     while (!WindowShouldClose) {
-        // Update the UI.
-        murl_handle_input(ctx);
-        mu_begin(ctx);
-        if (mu_begin_window(ctx, "The Window", mu_rect(40, 40, 300, 200))) {
-            mu_button(ctx, "My Button");
-            mu_end_window(ctx);
-        }
-        mu_end(ctx);
-        // Draw the UI.
         BeginDrawing();
         ClearBackground(Color(100, 100, 100, 255));
-        murl_draw(ctx);
+        // Update and draw the UI.
+        beginUi();
+        if (beginWindow("The Window", UiRect(40, 40, 300, 200))) {
+            button("My Button");
+            endWindow();
+        }
+        endUi();
         EndDrawing();
     }
 }
@@ -49,7 +45,7 @@ void main() {
 ## Modules
 
 * `microui`: Immediate-mode UI library
-* `muutils`: Common utility functions
+* `microuid`: High-level wrapper around `microui`
 * `murl`: Raylib helper utilities
 * `mupr`: Parin helper utilities
 

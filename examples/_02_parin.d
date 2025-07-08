@@ -1,27 +1,28 @@
 /// This example shows how to use microui with Parin.
 /// Parin: https://github.com/Kapendev/parin
 
-import mupr; // Equivalent to `import microui`, with additional helper functions for Parin.
+import mupr; // Equivalent to `import microuid`, with additional helper functions for Parin.
 import parin;
 
 char[512] buffer = '\0';
 auto number = 0.0f;
 auto font = engineFont;
-auto ctx = mu_Context();
 
 void ready() {
-    mupr_init(&ctx, &font);
+    // Create the UI context.
+    readyUi(&font);
 }
 
 bool update(float dt) {
-    mupr_begin(&ctx);
-    if (mu_begin_window(&ctx, "The Window", mu_rect(40, 40, 300, 200))) {
-        mu_button(&ctx, "My Button");
-        mu_slider(&ctx, &number, 0, 100);
-        mu_textbox(&ctx, buffer);
-        mu_end_window(&ctx);
+    // Update and draw the UI.
+    beginUi();
+    if (beginWindow("The Window", UiRect(40, 40, 300, 200))) {
+        button("My Button");
+        slider(number, 0, 100);
+        textbox(buffer);
+        endWindow();
     }
-    mupr_end(&ctx);
+    endUi();
     return false;
 }
 

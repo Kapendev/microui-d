@@ -8,10 +8,10 @@
 
 // TODO: work on attributes maybe.
 
-/// Equivalent to `import microui`, with additional helper functions for Parin.
+/// Equivalent to `import microuid`, with additional helper functions for Parin.
 module mupr;
 
-public import microui;
+public import microuid;
 
 private extern(C) nothrow @nogc {
     enum MOUSE_BUTTON_LEFT   = 0;
@@ -158,100 +158,99 @@ private extern(C) nothrow @nogc {
 
 // Temporary text measurement function for prototyping.
 nothrow @nogc
-private int mupr_temp_text_width_func(mu_Font font, const(char)[] str) {
+private int muprTempTextWidthFunc(mu_Font font, const(char)[] str) {
     auto da = cast(PFontId*) font;
     return cast(int) measureTextSize(*da, str).x;
 }
 // Temporary text measurement function for prototyping.
 nothrow @nogc
-private int mupr_temp_text_height_func(mu_Font font) {
+private int muprTempTextHeightFunc(mu_Font font) {
     auto da = cast(PFontId*) font;
     auto data = cast(Font*) &getFontData(*da);
     return data.baseSize;
 }
 
-extern(C) @trusted:
-
 /// Initializes the microui context and sets temporary text size functions. Value `font` should be a `FontId*`.
 nothrow @nogc
-void mupr_init(mu_Context* ctx, mu_Font font = null) {
-    mu_init_with_funcs(ctx, &mupr_temp_text_width_func, &mupr_temp_text_height_func, font ? font : ctx.style.font);
-    auto da = cast(PFontId*) ctx.style.font;
+void readyUi(UiFont font = null) {
+    readyUiCore(&muprTempTextWidthFunc, &muprTempTextHeightFunc, font ? font : uiContext.style.font);
+    auto da = cast(PFontId*) uiContext.style.font;
     if (da) {
         auto data = cast(Font*) &getFontData(*da);
-        ctx.style.size = mu_vec2(data.baseSize * 6, data.baseSize);
-        ctx.style.titleHeight = data.baseSize + 5;
+        uiContext.style.size = UiVec(data.baseSize * 6, data.baseSize);
+        uiContext.style.titleHeight = data.baseSize + 5;
         if (data.baseSize <= 16) {
+            uiContext.style.scrollbarKeySpeed = 1;
         } else if (data.baseSize <= 64) {
-            ctx.style.border = 2;
-            ctx.style.spacing += 4;
-            ctx.style.padding += 4;
-            ctx.style.scrollbarSize += 4;
-            ctx.style.scrollbarSpeed += 4;
-            ctx.style.thumbSize += 4;
+            uiContext.style.border = 2;
+            uiContext.style.spacing += 4;
+            uiContext.style.padding += 4;
+            uiContext.style.scrollbarSize += 4;
+            uiContext.style.scrollbarSpeed += 4;
+            uiContext.style.thumbSize += 4;
         } else {
-            ctx.style.border = 3;
-            ctx.style.spacing += 8;
-            ctx.style.padding += 8;
-            ctx.style.scrollbarSize += 8;
-            ctx.style.scrollbarSpeed += 8;
-            ctx.style.thumbSize += 8;
+            uiContext.style.border = 3;
+            uiContext.style.spacing += 8;
+            uiContext.style.padding += 8;
+            uiContext.style.scrollbarSize += 8;
+            uiContext.style.scrollbarSpeed += 8;
+            uiContext.style.thumbSize += 8;
         }
     }
 }
 
 /// Initializes the microui context and sets custom text size functions. Value `font` should be a `FontId*`.
 nothrow @nogc
-void mupr_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeightFunc height, mu_Font font = null) {
-    mupr_init(ctx, font);
-    ctx.textWidth = width;
-    ctx.textHeight = height;
+void readyUi(UiTextWidthFunc width, UiTextHeightFunc height, UiFont font = null) {
+    readyUi(font);
+    uiContext.textWidth = width;
+    uiContext.textHeight = height;
 }
 
 /// Handles input events and updates the microui context accordingly.
 nothrow @nogc
-void mupr_handle_input(mu_Context* ctx) {
-    mu_input_scroll(ctx, cast(int) (deltaWheel * -ctx.style.scrollbarSpeed), cast(int) (deltaWheel * -ctx.style.scrollbarSpeed));
-    mu_input_mousedown(ctx, cast(int) mouse.x, cast(int) mouse.y, isPressedMouse(Mouse.left) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
-    mu_input_mouseup(ctx, cast(int) mouse.x, cast(int) mouse.y, isReleasedMouse(Mouse.left) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
+void handleUiInput() {
+    uiInputScroll(cast(int) deltaWheel, cast(int) deltaWheel);
+    uiInputMouseDown(cast(int) mouse.x, cast(int) mouse.y, isPressedMouse(Mouse.left) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
+    uiInputMouseUp(cast(int) mouse.x, cast(int) mouse.y, isReleasedMouse(Mouse.left) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
 
-    mu_input_keydown(ctx, IsKeyPressed(KEY_LEFT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_RIGHT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_LEFT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_RIGHT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_LEFT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_RIGHT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_KP_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_TAB) ? MU_KEY_TAB : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_LEFT) ? MU_KEY_LEFT : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_RIGHT) ? MU_KEY_RIGHT : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_UP) ? MU_KEY_UP : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_DOWN) ? MU_KEY_DOWN : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_HOME) ? MU_KEY_HOME : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_END) ? MU_KEY_END : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_PAGE_UP) ? MU_KEY_PAGEUP : MU_KEY_NONE);
-    mu_input_keydown(ctx, IsKeyPressed(KEY_PAGE_DOWN) ? MU_KEY_PAGEDOWN : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_LEFT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_RIGHT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_LEFT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_RIGHT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_LEFT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_RIGHT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_KP_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_TAB) ? MU_KEY_TAB : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_LEFT) ? MU_KEY_LEFT : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_RIGHT) ? MU_KEY_RIGHT : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_UP) ? MU_KEY_UP : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_DOWN) ? MU_KEY_DOWN : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_HOME) ? MU_KEY_HOME : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_END) ? MU_KEY_END : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_PAGE_UP) ? MU_KEY_PAGEUP : MU_KEY_NONE);
+    uiInputKeyDown(IsKeyPressed(KEY_PAGE_DOWN) ? MU_KEY_PAGEDOWN : MU_KEY_NONE);
 
-    mu_input_keyup(ctx, IsKeyReleased(KEY_LEFT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_RIGHT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_LEFT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_RIGHT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_LEFT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_RIGHT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_KP_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_TAB) ? MU_KEY_TAB : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_LEFT) ? MU_KEY_LEFT : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_RIGHT) ? MU_KEY_RIGHT : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_UP) ? MU_KEY_UP : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_DOWN) ? MU_KEY_DOWN : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_HOME) ? MU_KEY_HOME : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_END) ? MU_KEY_END : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_PAGE_UP) ? MU_KEY_PAGEUP : MU_KEY_NONE);
-    mu_input_keyup(ctx, IsKeyReleased(KEY_PAGE_DOWN) ? MU_KEY_PAGEDOWN : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_LEFT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_RIGHT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_LEFT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_RIGHT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_LEFT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_RIGHT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_KP_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_TAB) ? MU_KEY_TAB : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_LEFT) ? MU_KEY_LEFT : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_RIGHT) ? MU_KEY_RIGHT : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_UP) ? MU_KEY_UP : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_DOWN) ? MU_KEY_DOWN : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_HOME) ? MU_KEY_HOME : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_END) ? MU_KEY_END : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_PAGE_UP) ? MU_KEY_PAGEUP : MU_KEY_NONE);
+    uiInputKeyUp(IsKeyReleased(KEY_PAGE_DOWN) ? MU_KEY_PAGEDOWN : MU_KEY_NONE);
 
     char[128] charBuffer = void;
     size_t charBufferLength = 0;
@@ -259,17 +258,17 @@ void mupr_handle_input(mu_Context* ctx) {
         charBuffer[i] = cast(char) GetCharPressed();
         if (charBuffer[i] == '\0') { charBufferLength = i; break; }
     }
-    if (charBufferLength) mu_input_text(ctx, charBuffer[0 .. charBufferLength]);
+    if (charBufferLength) uiInputText(charBuffer[0 .. charBufferLength]);
 }
 
 /// Draws the microui context to the screen.
-void mupr_draw(mu_Context* ctx) {
-    auto style_font = cast(PFontId*) ctx.style.font;
-    auto style_texture = cast(PTextureId*) ctx.style.texture;
+void drawUi() {
+    auto style_font = cast(PFontId*) uiContext.style.font;
+    auto style_texture = cast(PTextureId*) uiContext.style.texture;
     auto parin_options = DrawOptions(); // We just change the color, so it should be fine.
     BeginScissorMode(0, 0, windowWidth, windowHeight);
-    mu_Command *cmd;
-    while (mu_next_command(ctx, &cmd)) {
+    UiCommand *cmd;
+    while (nextUiCommand(&cmd)) {
         switch (cmd.type) {
             case MU_COMMAND_TEXT:
                 auto text_font = cast(PFontId*) cmd.text.font;
@@ -282,22 +281,18 @@ void mupr_draw(mu_Context* ctx) {
                 );
                 break;
             case MU_COMMAND_RECT:
-                // TODO: I guess add something similar to the raylib helper?
-                // TODO: Some of it can be made into a helper function where you just pass stuff and a function maybe.
                 parin_options.color = *(cast(Rgba*) (&cmd.rect.color));
-                auto atlas_rect = ctx.style.atlasRects[cmd.rect.id];
+                auto atlas_rect = uiContext.style.atlasRects[cmd.rect.id];
                 if (style_texture && atlas_rect.hasSize) {
-                    auto slice_margin = ctx.style.sliceMargins[cmd.rect.id];
-                    auto slice_mode = ctx.style.sliceModes[cmd.rect.id];
-                    foreach (i, part; mu_compute_slice_parts(atlas_rect, cmd.rect.rect, slice_margin)) {
-                        if (slice_mode && !part.isCorner) {
+                    auto slice_margin = uiContext.style.sliceMargins[cmd.rect.id];
+                    auto slice_mode = uiContext.style.sliceModes[cmd.rect.id];
+                    foreach (i, ref part; computeUiSliceParts(atlas_rect, cmd.rect.rect, slice_margin)) {
+                        if (slice_mode && part.canTile) {
                             parin_options.scale = Vec2(1, 1);
-                            auto y_count = part.source.h ? part.target.h / part.source.h + 1 : 0;
-                            auto x_count = part.source.w ? part.target.w / part.source.w + 1 : 0;
-                            foreach (y; 0 .. y_count) {
-                                foreach (x; 0 .. x_count) {
-                                    auto source_w = (x != x_count - 1) ? part.source.w : mu_max(0, part.target.w - x * part.source.w);
-                                    auto source_h = (y != y_count - 1) ? part.source.h : mu_max(0, part.target.h - y * part.source.h);
+                            foreach (y; 0 .. part.tileCount.y) {
+                                foreach (x; 0 .. part.tileCount.x) {
+                                    auto source_w = (x != part.tileCount.x - 1) ? part.source.w : mu_max(0, part.target.w - x * part.source.w);
+                                    auto source_h = (y != part.tileCount.y - 1) ? part.source.h : mu_max(0, part.target.h - y * part.source.h);
                                     drawTextureArea(
                                         *style_texture,
                                         Rect(part.source.x, part.source.y, source_w, source_h),
@@ -328,27 +323,35 @@ void mupr_draw(mu_Context* ctx) {
                 }
                 break;
             case MU_COMMAND_ICON:
-                const(char)[] icon = "?";
-                switch (cmd.icon.id) {
-                    case MU_ICON_CLOSE: icon = "x"; break;
-                    case MU_ICON_CHECK: icon = "*"; break;
-                    case MU_ICON_COLLAPSED: icon = "+"; break;
-                    case MU_ICON_EXPANDED: icon = "-"; break;
-                    default: break;
-                }
-                auto icon_width = ctx.textWidth(style_font, icon);
-                auto icon_height = ctx.textHeight(style_font);
-                auto icon_rect = cmd.icon.rect;
-                auto icon_diff = mu_vec2(icon_rect.w - icon_width, icon_rect.h - icon_height);
-                if (icon_diff.x < 0) icon_diff.x *= -1;
-                if (icon_diff.y < 0) icon_diff.y *= -1;
                 parin_options.color = *(cast(Rgba*) (&cmd.icon.color));
-                drawText(
-                    *style_font,
-                    icon,
-                    Vec2(icon_rect.x + icon_diff.x / 2, icon_rect.y + icon_diff.y / 2),
-                    parin_options,
-                );
+                auto icon_atlas_rect = uiContext.style.iconAtlasRects[cmd.icon.id];
+                auto icon_diff = UiVec(cmd.icon.rect.w - icon_atlas_rect.w, cmd.icon.rect.h - icon_atlas_rect.h);
+                if (style_texture && icon_atlas_rect.hasSize) {
+                    drawTextureArea(
+                        *style_texture,
+                        Rect(icon_atlas_rect.x, icon_atlas_rect.y, icon_atlas_rect.w, icon_atlas_rect.h),
+                        Vec2(cmd.icon.rect.x + icon_diff.x / 2, cmd.icon.rect.y + icon_diff.y / 2),
+                        parin_options,
+                    );
+                } else {
+                    const(char)[] icon = "?";
+                    switch (cmd.icon.id) {
+                        case MU_ICON_CLOSE: icon = "x"; break;
+                        case MU_ICON_CHECK: icon = "*"; break;
+                        case MU_ICON_COLLAPSED: icon = "+"; break;
+                        case MU_ICON_EXPANDED: icon = "-"; break;
+                        default: break;
+                    }
+                    auto icon_width = uiContext.textWidth(style_font, icon);
+                    auto icon_height = uiContext.textHeight(style_font);
+                    icon_diff = UiVec(cmd.icon.rect.w - icon_width, cmd.icon.rect.h - icon_height);
+                    drawText(
+                        *style_font,
+                        icon,
+                        Vec2(cmd.icon.rect.x + icon_diff.x / 2, cmd.icon.rect.y + icon_diff.y / 2),
+                        parin_options,
+                    );
+                }
                 break;
             case MU_COMMAND_CLIP:
                 EndScissorMode();
@@ -362,13 +365,13 @@ void mupr_draw(mu_Context* ctx) {
 }
 
 /// Begins input handling and UI processing.
-void mupr_begin(mu_Context* ctx) {
-    mupr_handle_input(ctx);
-    mu_begin(ctx);
+void beginUi() {
+    handleUiInput();
+    beginUiCore();
 }
 
 /// Ends UI processing and performs drawing.
-void mupr_end(mu_Context* ctx) {
-    mu_end(ctx);
-    mupr_draw(ctx);
+void endUi() {
+    endUiCore();
+    drawUi();
 }
