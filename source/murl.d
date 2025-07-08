@@ -8,7 +8,7 @@
 
 // TODO: work on attributes maybe.
 
-/// Equivalent to `import microui`, with additional helper functions for raylib.
+/// Equivalent to `import microuid`, with additional helper functions for raylib.
 module murl;
 
 public import microuid;

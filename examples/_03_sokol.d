@@ -158,7 +158,7 @@ void event(const(sapp.Event)* ev) {
             mu_input_mousemove(&state.mu_ctx, cast(int) ev.mouse_x, cast(int) ev.mouse_y);
             break;
         case sapp.EventType.Mouse_scroll:
-            mu_input_scroll(&state.mu_ctx, 0, cast(int) ev.scroll_y * -30);
+            mu_input_scroll(&state.mu_ctx, 0, cast(int) ev.scroll_y);
             break;
         case sapp.EventType.Key_down:
             mu_input_keydown(&state.mu_ctx, key_map[ev.key_code & 511]);
