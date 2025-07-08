@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 // Email: alexandroskapretsos@gmail.com
 // Project: https://github.com/Kapendev/microui-d
-// Version: v0.0.4
+// Version: v0.0.5
 // ---
 
 // TODO: work on attributes maybe.
@@ -62,6 +62,11 @@ alias UiContext   = mu_Context;   /// The main UI context.
 alias computeUiSliceParts = mu_compute_slice_parts;
 
 @trusted:
+
+nothrow @nogc
+ref uiStyle() {
+    return uiContext.style;
+}
 
 nothrow @nogc
 void readyUiCore(UiFont font = null) {

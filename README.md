@@ -2,7 +2,7 @@
 
 A tiny and portable immediate-mode UI library written in D.
 Microui-d is a complete rewrite of [rxi's microui](https://github.com/rxi/microui).
-It's 90% the same library, but with bug fixes, sprite support, and other D-specific improvements.
+It's 90% the same library, but with bug fixes, texture support, and other D-specific improvements.
 
 ## Major Features
 
@@ -45,7 +45,7 @@ void main() {
 ## Modules
 
 * `microui`: Immediate-mode UI library
-* `microuid`: High-level wrapper around `microui`
+* `microuid`: Wrapper around `microui`
 * `murl`: Raylib helper utilities
 * `mupr`: Parin helper utilities
 

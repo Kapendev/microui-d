@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 // Email: alexandroskapretsos@gmail.com
 // Project: https://github.com/Kapendev/microui-d
-// Version: v0.0.4
+// Version: v0.0.5
 // ---
 
 // TODO: work on attributes maybe.
@@ -173,28 +173,28 @@ private int muprTempTextHeightFunc(mu_Font font) {
 /// Initializes the microui context and sets temporary text size functions. Value `font` should be a `FontId*`.
 nothrow @nogc
 void readyUi(UiFont font = null) {
-    readyUiCore(&muprTempTextWidthFunc, &muprTempTextHeightFunc, font ? font : uiContext.style.font);
-    auto da = cast(PFontId*) uiContext.style.font;
+    readyUiCore(&muprTempTextWidthFunc, &muprTempTextHeightFunc, font ? font : uiStyle.font);
+    auto da = cast(PFontId*) uiStyle.font;
     if (da) {
         auto data = cast(Font*) &getFontData(*da);
-        uiContext.style.size = UiVec(data.baseSize * 6, data.baseSize);
-        uiContext.style.titleHeight = data.baseSize + 5;
+        uiStyle.size = UiVec(data.baseSize * 6, data.baseSize);
+        uiStyle.titleHeight = data.baseSize + 5;
         if (data.baseSize <= 16) {
-            uiContext.style.scrollbarKeySpeed = 1;
+            uiStyle.scrollbarKeySpeed = 1;
         } else if (data.baseSize <= 64) {
-            uiContext.style.border = 2;
-            uiContext.style.spacing += 4;
-            uiContext.style.padding += 4;
-            uiContext.style.scrollbarSize += 4;
-            uiContext.style.scrollbarSpeed += 4;
-            uiContext.style.thumbSize += 4;
+            uiStyle.border = 2;
+            uiStyle.spacing += 4;
+            uiStyle.padding += 4;
+            uiStyle.scrollbarSize += 4;
+            uiStyle.scrollbarSpeed += 4;
+            uiStyle.thumbSize += 4;
         } else {
-            uiContext.style.border = 3;
-            uiContext.style.spacing += 8;
-            uiContext.style.padding += 8;
-            uiContext.style.scrollbarSize += 8;
-            uiContext.style.scrollbarSpeed += 8;
-            uiContext.style.thumbSize += 8;
+            uiStyle.border = 3;
+            uiStyle.spacing += 8;
+            uiStyle.padding += 8;
+            uiStyle.scrollbarSize += 8;
+            uiStyle.scrollbarSpeed += 8;
+            uiStyle.thumbSize += 8;
         }
     }
 }
@@ -263,8 +263,8 @@ void handleUiInput() {
 
 /// Draws the microui context to the screen.
 void drawUi() {
-    auto style_font = cast(PFontId*) uiContext.style.font;
-    auto style_texture = cast(PTextureId*) uiContext.style.texture;
+    auto style_font = cast(PFontId*) uiStyle.font;
+    auto style_texture = cast(PTextureId*) uiStyle.texture;
     auto parin_options = DrawOptions(); // We just change the color, so it should be fine.
     BeginScissorMode(0, 0, windowWidth, windowHeight);
     UiCommand *cmd;
@@ -282,10 +282,10 @@ void drawUi() {
                 break;
             case MU_COMMAND_RECT:
                 parin_options.color = *(cast(Rgba*) (&cmd.rect.color));
-                auto atlas_rect = uiContext.style.atlasRects[cmd.rect.id];
+                auto atlas_rect = uiStyle.atlasRects[cmd.rect.id];
                 if (style_texture && atlas_rect.hasSize) {
-                    auto slice_margin = uiContext.style.sliceMargins[cmd.rect.id];
-                    auto slice_mode = uiContext.style.sliceModes[cmd.rect.id];
+                    auto slice_margin = uiStyle.sliceMargins[cmd.rect.id];
+                    auto slice_mode = uiStyle.sliceModes[cmd.rect.id];
                     foreach (i, ref part; computeUiSliceParts(atlas_rect, cmd.rect.rect, slice_margin)) {
                         if (slice_mode && part.canTile) {
                             parin_options.scale = Vec2(1, 1);
@@ -324,7 +324,7 @@ void drawUi() {
                 break;
             case MU_COMMAND_ICON:
                 parin_options.color = *(cast(Rgba*) (&cmd.icon.color));
-                auto icon_atlas_rect = uiContext.style.iconAtlasRects[cmd.icon.id];
+                auto icon_atlas_rect = uiStyle.iconAtlasRects[cmd.icon.id];
                 auto icon_diff = UiVec(cmd.icon.rect.w - icon_atlas_rect.w, cmd.icon.rect.h - icon_atlas_rect.h);
                 if (style_texture && icon_atlas_rect.hasSize) {
                     drawTextureArea(
