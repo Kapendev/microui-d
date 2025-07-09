@@ -157,7 +157,7 @@ enum : mu_ResFlags {
 }
 
 enum : mu_OptFlags {
-    MU_OPT_NONE         = 0,         /// No options.
+    MU_OPT_NONE         = 0,         /// No option.
     MU_OPT_ALIGNCENTER  = (1 << 0),  /// Center-align control content.
     MU_OPT_ALIGNRIGHT   = (1 << 1),  /// Right-align control content.
     MU_OPT_NOINTERACT   = (1 << 2),  /// Disable interaction.

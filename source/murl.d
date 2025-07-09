@@ -107,7 +107,6 @@ void readyUi(mu_Font font = null) {
         uiStyle.size = UiVec(data.baseSize * 6, data.baseSize);
         uiStyle.titleHeight = data.baseSize + 5;
         if (data.baseSize <= 16) {
-            uiStyle.scrollbarKeySpeed = 1;
         } else if (data.baseSize <= 64) {
             uiStyle.border = 2;
             uiStyle.spacing += 4;
@@ -149,47 +148,51 @@ void handleUiInput() {
     } else {
         scroll = GetMouseWheelMoveV();
     }
-    uiInputScroll(cast(int) scroll.x, cast(int) scroll.y);
-    uiInputMouseDown(GetMouseX(), GetMouseY(), IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
-    uiInputMouseUp(GetMouseX(), GetMouseY(), IsMouseButtonReleased(MOUSE_BUTTON_LEFT) ? MU_MOUSE_LEFT : MU_MOUSE_NONE);
+    with (UiMouseFlag) {
+        uiInputScroll(cast(int) scroll.x, cast(int) scroll.y);
+        uiInputMouseDown(GetMouseX(), GetMouseY(), IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ? left : none);
+        uiInputMouseUp(GetMouseX(), GetMouseY(), IsMouseButtonReleased(MOUSE_BUTTON_LEFT) ? left : none);
+    }
 
-    uiInputKeyDown(IsKeyPressed(KEY_LEFT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_RIGHT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_LEFT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_RIGHT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_LEFT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_RIGHT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_KP_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_TAB) ? MU_KEY_TAB : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_LEFT) ? MU_KEY_LEFT : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_RIGHT) ? MU_KEY_RIGHT : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_UP) ? MU_KEY_UP : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_DOWN) ? MU_KEY_DOWN : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_HOME) ? MU_KEY_HOME : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_END) ? MU_KEY_END : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_PAGE_UP) ? MU_KEY_PAGEUP : MU_KEY_NONE);
-    uiInputKeyDown(IsKeyPressed(KEY_PAGE_DOWN) ? MU_KEY_PAGEDOWN : MU_KEY_NONE);
+    with (UiKeyFlag) {
+        uiInputKeyDown(IsKeyPressed(KEY_LEFT_SHIFT) ? shift : none);
+        uiInputKeyDown(IsKeyPressed(KEY_RIGHT_SHIFT) ? shift : none);
+        uiInputKeyDown(IsKeyPressed(KEY_LEFT_CONTROL) ? ctrl : none);
+        uiInputKeyDown(IsKeyPressed(KEY_RIGHT_CONTROL) ? ctrl : none);
+        uiInputKeyDown(IsKeyPressed(KEY_LEFT_ALT) ? alt : none);
+        uiInputKeyDown(IsKeyPressed(KEY_RIGHT_ALT) ? alt : none);
+        uiInputKeyDown(IsKeyPressed(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : none);
+        uiInputKeyDown(IsKeyPressed(KEY_ENTER) ? enter : none);
+        uiInputKeyDown(IsKeyPressed(KEY_KP_ENTER) ? enter : none);
+        uiInputKeyDown(IsKeyPressed(KEY_TAB) ? tab : none);
+        uiInputKeyDown(IsKeyPressed(KEY_LEFT) ? left : none);
+        uiInputKeyDown(IsKeyPressed(KEY_RIGHT) ? right : none);
+        uiInputKeyDown(IsKeyPressed(KEY_UP) ? up : none);
+        uiInputKeyDown(IsKeyPressed(KEY_DOWN) ? down : none);
+        uiInputKeyDown(IsKeyPressed(KEY_HOME) ? home : none);
+        uiInputKeyDown(IsKeyPressed(KEY_END) ? end : none);
+        uiInputKeyDown(IsKeyPressed(KEY_PAGE_UP) ? pageUp : none);
+        uiInputKeyDown(IsKeyPressed(KEY_PAGE_DOWN) ? pageDown : none);
 
-    uiInputKeyUp(IsKeyReleased(KEY_LEFT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_RIGHT_SHIFT) ? MU_KEY_SHIFT : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_LEFT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_RIGHT_CONTROL) ? MU_KEY_CTRL : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_LEFT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_RIGHT_ALT) ? MU_KEY_ALT : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_KP_ENTER) ? MU_KEY_RETURN : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_TAB) ? MU_KEY_TAB : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_LEFT) ? MU_KEY_LEFT : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_RIGHT) ? MU_KEY_RIGHT : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_UP) ? MU_KEY_UP : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_DOWN) ? MU_KEY_DOWN : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_HOME) ? MU_KEY_HOME : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_END) ? MU_KEY_END : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_PAGE_UP) ? MU_KEY_PAGEUP : MU_KEY_NONE);
-    uiInputKeyUp(IsKeyReleased(KEY_PAGE_DOWN) ? MU_KEY_PAGEDOWN : MU_KEY_NONE);
+        uiInputKeyUp(IsKeyReleased(KEY_LEFT_SHIFT) ? shift : none);
+        uiInputKeyUp(IsKeyReleased(KEY_RIGHT_SHIFT) ? shift : none);
+        uiInputKeyUp(IsKeyReleased(KEY_LEFT_CONTROL) ? ctrl : none);
+        uiInputKeyUp(IsKeyReleased(KEY_RIGHT_CONTROL) ? ctrl : none);
+        uiInputKeyUp(IsKeyReleased(KEY_LEFT_ALT) ? alt : none);
+        uiInputKeyUp(IsKeyReleased(KEY_RIGHT_ALT) ? alt : none);
+        uiInputKeyUp(IsKeyReleased(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : none);
+        uiInputKeyUp(IsKeyReleased(KEY_ENTER) ? enter : none);
+        uiInputKeyUp(IsKeyReleased(KEY_KP_ENTER) ? enter : none);
+        uiInputKeyUp(IsKeyReleased(KEY_TAB) ? tab : none);
+        uiInputKeyUp(IsKeyReleased(KEY_LEFT) ? left : none);
+        uiInputKeyUp(IsKeyReleased(KEY_RIGHT) ? right : none);
+        uiInputKeyUp(IsKeyReleased(KEY_UP) ? up : none);
+        uiInputKeyUp(IsKeyReleased(KEY_DOWN) ? down : none);
+        uiInputKeyUp(IsKeyReleased(KEY_HOME) ? home : none);
+        uiInputKeyUp(IsKeyReleased(KEY_END) ? end : none);
+        uiInputKeyUp(IsKeyReleased(KEY_PAGE_UP) ? pageUp : none);
+        uiInputKeyUp(IsKeyReleased(KEY_PAGE_DOWN) ? pageDown : none);
+    }
 
     char[128] charBuffer = void;
     size_t charBufferLength = 0;

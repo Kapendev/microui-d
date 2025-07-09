@@ -26,12 +26,6 @@ alias UiFont      = mu_Font;      /// The font type of microui.
 alias UiTexture   = mu_Texture;   /// The texture type of microui.
 alias UiSliceMode = mu_SliceMode; /// The slice repeat mode type of microui.
 
-alias UiClipEnum    = mu_ClipEnum;    /// The type of `MU_CLIP_*` enums.
-alias UiCommandEnum = mu_CommandEnum; /// The type of `MU_COMMAND_*` enums.
-alias UiColorEnum   = mu_ColorEnum;   /// The type of `MU_COLOR_*` enums.
-alias UiIconEnum    = mu_IconEnum;    /// The type of `MU_ICON_*` enums.
-alias UiAtlasEnum   = mu_AtlasEnum;   /// The type of `MU_ATLAS*` enums.
-
 alias UiResFlags   = mu_ResFlags;   /// The type of `MU_RES_*` enums.
 alias UiOptFlags   = mu_OptFlags;   /// The type of `MU_OPT_*` enums.
 alias UiMouseFlags = mu_MouseFlags; /// The type of `MU_MOUSE_*` enums.
@@ -61,10 +55,108 @@ alias UiContext   = mu_Context;   /// The main UI context.
 
 alias computeUiSliceParts = mu_compute_slice_parts;
 
+enum UiClipEnum : mu_ClipEnum {
+    none = MU_CLIP_NONE, /// No clipping.
+    part = MU_CLIP_PART, /// Partial clipping (for scrollable areas).
+    all  = MU_CLIP_ALL,  /// Full clipping to container bounds.
+}
+
+enum UiCommandEnum : mu_CommandEnum {
+    none = MU_COMMAND_NONE, /// No command.
+    jump = MU_COMMAND_JUMP, /// Jump to another command in the buffer.
+    clip = MU_COMMAND_CLIP, /// Set a clipping region.
+    rect = MU_COMMAND_RECT, /// Draw a rectangle.
+    text = MU_COMMAND_TEXT, /// Draw text.
+    icon = MU_COMMAND_ICON, /// Draw an icon.
+}
+
+enum UiColorEnum : mu_ColorEnum {
+    text        = MU_COLOR_TEXT,        /// Default text color.
+    border      = MU_COLOR_BORDER,      /// Border color for controls.
+    windowBg    = MU_COLOR_WINDOWBG,    /// Background color of windows.
+    titleBg     = MU_COLOR_TITLEBG,     /// Background color of window titles.
+    titleText   = MU_COLOR_TITLETEXT,   /// Text color for window titles.
+    panelBg     = MU_COLOR_PANELBG,     /// Background color of panels.
+    button      = MU_COLOR_BUTTON,      /// Default button color.
+    buttonHover = MU_COLOR_BUTTONHOVER, /// Button color on hover.
+    buttonFocus = MU_COLOR_BUTTONFOCUS, /// Button color when focused.
+    base        = MU_COLOR_BASE,        /// Base background for text input or sliders.
+    baseHover   = MU_COLOR_BASEHOVER,   /// Hover color for base controls.
+    baseFocus   = MU_COLOR_BASEFOCUS,   /// Focus color for base controls.
+    scrollBase  = MU_COLOR_SCROLLBASE,  /// Background of scrollbars.
+    scrollThumb = MU_COLOR_SCROLLTHUMB, /// Scrollbar thumb color.
+}
+
+enum UiIconEnum : mu_IconEnum {
+    none      = MU_ICON_NONE,      /// No icon.
+    close     = MU_ICON_CLOSE,     /// Close icon.
+    check     = MU_ICON_CHECK,     /// Checkmark icon.
+    collapsed = MU_ICON_COLLAPSED, /// Collapsed tree icon.
+    expanded  = MU_ICON_EXPANDED,  /// Expanded tree icon.
+}
+
+enum UiAtlasEnum : mu_AtlasEnum {
+    none        = MU_ATLAS_NONE,        /// No atlas rectangle.
+    button      = MU_ATLAS_BUTTON,      /// Default button atlas rectangle.
+    buttonHover = MU_ATLAS_BUTTONHOVER, /// Button atlas rectangle on hover.
+    buttonFocus = MU_ATLAS_BUTTONFOCUS, /// Button atlas rectangle when focused.
+}
+
+enum UiResFlag : UiResFlags {
+    none   = MU_RES_NONE,   /// No result.
+    active = MU_RES_ACTIVE, /// Control is active (e.g., active window).
+    submit = MU_RES_SUBMIT, /// Control value submitted (e.g., clicked button).
+    change = MU_RES_CHANGE, /// Control value changed (e.g., modified text input).
+}
+
+enum UiOptFlag : UiOptFlags {
+    none         = MU_OPT_NONE,         /// No option.
+    alignCenter  = MU_OPT_ALIGNCENTER,  /// Center-align control content.
+    alignRight   = MU_OPT_ALIGNRIGHT,   /// Right-align control content.
+    noInteract   = MU_OPT_NOINTERACT,   /// Disable interaction.
+    noFrame      = MU_OPT_NOFRAME,      /// Draw control without a frame.
+    noResize     = MU_OPT_NORESIZE,     /// Disable resizing for windows.
+    noScroll     = MU_OPT_NOSCROLL,     /// Disable scrolling for containers.
+    noClose      = MU_OPT_NOCLOSE,      /// Remove close button from window.
+    noTitle      = MU_OPT_NOTITLE,      /// Remove title bar from window.
+    holdFocus    = MU_OPT_HOLDFOCUS,    /// Keep control focused after click.
+    autoSize     = MU_OPT_AUTOSIZE,     /// Window automatically sizes to content. Implies `MU_OPT_NORESIZE` and `MU_OPT_NOSCROLL`.
+    popup        = MU_OPT_POPUP,        /// Marks window as popup (e.g., closed on mouse click).
+    closed       = MU_OPT_CLOSED,       /// Window starts closed.
+    expanded     = MU_OPT_EXPANDED,     /// Window starts expanded.
+    noName       = MU_OPT_NONAME,       /// Hides window name.
+    defaultFocus = MU_OPT_DEFAULTFOCUS, /// Keep focus when no other control is focused.
+}
+
+enum UiMouseFlag : UiMouseFlags {
+    none   = MU_MOUSE_NONE,   /// No mouse button.
+    left   = MU_MOUSE_LEFT,   /// Left mouse button.
+    right  = MU_MOUSE_RIGHT,  /// Right mouse button.
+    middle = MU_MOUSE_MIDDLE, /// Middle mouse button.
+}
+
+enum UiKeyFlag : mu_KeyFlags {
+    none      = MU_KEY_NONE,      /// No key.
+    shift     = MU_KEY_SHIFT,     /// Shift key down.
+    ctrl      = MU_KEY_CTRL,      /// Control key down.
+    alt       = MU_KEY_ALT,       /// Alt key down.
+    backspace = MU_KEY_BACKSPACE, /// Backspace key down.
+    enter     = MU_KEY_RETURN,    /// Return key down.
+    tab       = MU_KEY_TAB,       /// Tab key down.
+    left      = MU_KEY_LEFT,      /// Left key down.
+    right     = MU_KEY_RIGHT,     /// Right key down.
+    up        = MU_KEY_UP,        /// Up key down.
+    down      = MU_KEY_DOWN,      /// Down key down.
+    home      = MU_KEY_HOME,      /// Down key home.
+    end       = MU_KEY_END,       /// Down key end.
+    pageUp    = MU_KEY_PAGEUP,    /// Down key page up.
+    pageDown  = MU_KEY_PAGEDOWN,  /// Down key page down.
+}
+
 @trusted:
 
 nothrow @nogc
-ref uiStyle() {
+ref UiStyle* uiStyle() {
     return uiContext.style;
 }
 
@@ -123,7 +215,7 @@ UiRect getUiClipRect() {
 }
 
 UiClipEnum checkUiClipRect(UiRect rect) {
-    return mu_check_clip(&uiContext, rect);
+    return cast(UiClipEnum) mu_check_clip(&uiContext, rect);
 }
 
 UiContainer* getCurrentUiContainer() {
@@ -209,7 +301,7 @@ void setUiClipRect(UiRect rect) {
     mu_set_clip(&uiContext, rect);
 }
 
-void drawUiRect(UiRect rect, UiColor color, UiAtlasEnum id = MU_ATLAS_NONE) {
+void drawUiRect(UiRect rect, UiColor color, UiAtlasEnum id = UiAtlasEnum.none) {
     mu_draw_rect(&uiContext, rect, color, id);
 }
 
@@ -261,7 +353,7 @@ UiRect nextLayout() {
 ** controls
 **============================================================================*/
 
-void drawControlFrame(UiId id, UiRect rect, UiColorEnum colorId, UiOptFlags opt, UiAtlasEnum atlasId = MU_ATLAS_NONE) {
+void drawControlFrame(UiId id, UiRect rect, UiColorEnum colorId, UiOptFlags opt, UiAtlasEnum atlasId = UiAtlasEnum.none) {
     mu_draw_control_frame(&uiContext, id, rect, colorId, opt, atlasId);
 }
 
