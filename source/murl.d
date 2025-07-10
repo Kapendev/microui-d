@@ -161,7 +161,7 @@ void handleUiInput() {
         uiInputKeyDown(IsKeyPressed(KEY_RIGHT_CONTROL) ? ctrl : none);
         uiInputKeyDown(IsKeyPressed(KEY_LEFT_ALT) ? alt : none);
         uiInputKeyDown(IsKeyPressed(KEY_RIGHT_ALT) ? alt : none);
-        uiInputKeyDown(IsKeyPressed(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : none);
+        uiInputKeyDown(IsKeyPressed(KEY_BACKSPACE) ? backspace : none);
         uiInputKeyDown(IsKeyPressed(KEY_ENTER) ? enter : none);
         uiInputKeyDown(IsKeyPressed(KEY_KP_ENTER) ? enter : none);
         uiInputKeyDown(IsKeyPressed(KEY_TAB) ? tab : none);
@@ -180,7 +180,7 @@ void handleUiInput() {
         uiInputKeyUp(IsKeyReleased(KEY_RIGHT_CONTROL) ? ctrl : none);
         uiInputKeyUp(IsKeyReleased(KEY_LEFT_ALT) ? alt : none);
         uiInputKeyUp(IsKeyReleased(KEY_RIGHT_ALT) ? alt : none);
-        uiInputKeyUp(IsKeyReleased(KEY_BACKSPACE) ? MU_KEY_BACKSPACE : none);
+        uiInputKeyUp(IsKeyReleased(KEY_BACKSPACE) ? backspace : none);
         uiInputKeyUp(IsKeyReleased(KEY_ENTER) ? enter : none);
         uiInputKeyUp(IsKeyReleased(KEY_KP_ENTER) ? enter : none);
         uiInputKeyUp(IsKeyReleased(KEY_TAB) ? tab : none);

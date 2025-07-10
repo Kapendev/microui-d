@@ -26,10 +26,10 @@ alias UiFont      = mu_Font;      /// The font type of microui.
 alias UiTexture   = mu_Texture;   /// The texture type of microui.
 alias UiSliceMode = mu_SliceMode; /// The slice repeat mode type of microui.
 
-alias UiResFlags   = mu_ResFlags;   /// The type of `MU_RES_*` enums.
-alias UiOptFlags   = mu_OptFlags;   /// The type of `MU_OPT_*` enums.
-alias UiMouseFlags = mu_MouseFlags; /// The type of `MU_MOUSE_*` enums.
-alias UiKeyFlags   = mu_KeyFlags;   /// The type of `MU_KEY_*` enums.
+alias UiResFlags   = mu_ResFlags;   /// The type of `UiResFlag`.
+alias UiOptFlags   = mu_OptFlags;   /// The type of `UiOptFlag`.
+alias UiMouseFlags = mu_MouseFlags; /// The type of `UiMouseFlag`.
+alias UiKeyFlags   = mu_KeyFlags;   /// The type of `UiKeyFlag`.
 
 alias UiColor      = mu_Color;      /// A RGBA color using ubytes.
 alias UiRect       = mu_Rect;       /// A 2D rectangle using ints.
