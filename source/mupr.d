@@ -181,7 +181,7 @@ void readyUi(UiFont font = null, int fontScale = 1) {
         auto data = cast(Font*) &getFontData(*da);
         auto baseSize = data.baseSize * uiStyle.fontScale;
         uiStyle.size = UiVec(baseSize * 6, baseSize);
-        uiStyle.titleHeight = cast(int) (baseSize * 1.75f);
+        uiStyle.titleHeight = cast(int) (baseSize * 1.4f);
         if (baseSize <= 16) {
         } else if (baseSize <= 64) {
             uiStyle.border = 2;
