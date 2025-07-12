@@ -161,13 +161,13 @@ ref UiStyle* uiStyle() {
 }
 
 nothrow @nogc
-void readyUiCore(UiFont font = null) {
-    mu_init(&uiContext, font);
+void readyUiCore(UiFont font = null, int fontScale = 1) {
+    mu_init(&uiContext, font, fontScale);
 }
 
 nothrow @nogc
-void readyUiCore(UiTextWidthFunc width, UiTextHeightFunc height, UiFont font = null) {
-    mu_init_with_funcs(&uiContext, width, height, font);
+void readyUiCore(UiTextWidthFunc width, UiTextHeightFunc height, UiFont font = null, int fontScale = 1) {
+    mu_init_with_funcs(&uiContext, width, height, font, fontScale);
 }
 
 void beginUiCore() {

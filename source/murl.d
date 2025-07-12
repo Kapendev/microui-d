@@ -89,25 +89,26 @@ private extern(C) nothrow @nogc {
 nothrow @nogc
 private int murlTempTextWidthFunc(mu_Font font, const(char)[] str) {
     auto data = cast(Font*) font;
-    return cast(int) MeasureTextEx(*data, str.ptr, data.baseSize, 1).x;
+    return cast(int) MeasureTextEx(*data, str.ptr, data.baseSize * uiStyle.fontScale, uiStyle.fontScale).x;
 }
 // Temporary text measurement function for prototyping.
 nothrow @nogc
 private int murlTempTextHeightFunc(mu_Font font) {
     auto data = cast(Font*) font;
-    return data.baseSize;
+    return data.baseSize * uiStyle.fontScale;
 }
 
 /// Initializes the microui context and sets temporary text size functions. Value `font` should be a `Font*`.
 nothrow @nogc
-void readyUi(mu_Font font = null) {
-    readyUiCore(&murlTempTextWidthFunc, &murlTempTextHeightFunc, font ? font : uiStyle.font);
+void readyUi(mu_Font font = null, int fontScale = 1) {
+    readyUiCore(&murlTempTextWidthFunc, &murlTempTextHeightFunc, font, fontScale);
     auto data = cast(Font*) uiStyle.font;
     if (data) {
-        uiStyle.size = UiVec(data.baseSize * 6, data.baseSize);
-        uiStyle.titleHeight = data.baseSize + 5;
-        if (data.baseSize <= 16) {
-        } else if (data.baseSize <= 64) {
+        auto baseSize = data.baseSize * uiStyle.fontScale;
+        uiStyle.size = UiVec(baseSize * 6, baseSize);
+        uiStyle.titleHeight = cast(int) (baseSize * 1.75f);
+        if (baseSize <= 16) {
+        } else if (baseSize <= 64) {
             uiStyle.border = 2;
             uiStyle.spacing += 4;
             uiStyle.padding += 4;
@@ -127,8 +128,8 @@ void readyUi(mu_Font font = null) {
 
 /// Initializes the microui context and sets custom text size functions. Value `font` should be a `Font*`.
 nothrow @nogc
-void readyUi(UiTextWidthFunc width, UiTextHeightFunc height, UiFont font = null) {
-    readyUi(font);
+void readyUi(UiTextWidthFunc width, UiTextHeightFunc height, UiFont font = null, int fontScale = 1) {
+    readyUi(font, fontScale);
     uiContext.textWidth = width;
     uiContext.textHeight = height;
 }
@@ -213,8 +214,8 @@ void drawUi() {
                     *text_font,
                     cmd.text.str.ptr,
                     Vector2(cmd.text.pos.x, cmd.text.pos.y),
-                    text_font.baseSize,
-                    1,
+                    text_font.baseSize * uiStyle.fontScale,
+                    uiStyle.fontScale,
                     *(cast(Color*) (&cmd.text.color)),
                 );
                 break;
@@ -285,8 +286,8 @@ void drawUi() {
                         *style_font,
                         icon.ptr,
                         Vector2(cmd.icon.rect.x + icon_diff.x / 2, cmd.icon.rect.y + icon_diff.y / 2),
-                        style_font.baseSize,
-                        1,
+                        style_font.baseSize * uiStyle.fontScale,
+                        uiStyle.fontScale,
                         *(cast(Color*) &cmd.icon.color),
                     );
                 }

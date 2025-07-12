@@ -160,27 +160,30 @@ private extern(C) nothrow @nogc {
 nothrow @nogc
 private int muprTempTextWidthFunc(mu_Font font, const(char)[] str) {
     auto da = cast(PFontId*) font;
-    return cast(int) measureTextSize(*da, str).x;
+    auto options = DrawOptions();
+    options.scale = Vec2(uiStyle.fontScale, uiStyle.fontScale);
+    return cast(int) measureTextSize(*da, str, options).x;
 }
 // Temporary text measurement function for prototyping.
 nothrow @nogc
 private int muprTempTextHeightFunc(mu_Font font) {
     auto da = cast(PFontId*) font;
     auto data = cast(Font*) &getFontData(*da);
-    return data.baseSize;
+    return data.baseSize * uiStyle.fontScale;
 }
 
 /// Initializes the microui context and sets temporary text size functions. Value `font` should be a `FontId*`.
 nothrow @nogc
-void readyUi(UiFont font = null) {
-    readyUiCore(&muprTempTextWidthFunc, &muprTempTextHeightFunc, font ? font : uiStyle.font);
+void readyUi(UiFont font = null, int fontScale = 1) {
+    readyUiCore(&muprTempTextWidthFunc, &muprTempTextHeightFunc, font, fontScale);
     auto da = cast(PFontId*) uiStyle.font;
     if (da) {
         auto data = cast(Font*) &getFontData(*da);
-        uiStyle.size = UiVec(data.baseSize * 6, data.baseSize);
-        uiStyle.titleHeight = data.baseSize + 5;
-        if (data.baseSize <= 16) {
-        } else if (data.baseSize <= 64) {
+        auto baseSize = data.baseSize * uiStyle.fontScale;
+        uiStyle.size = UiVec(baseSize * 6, baseSize);
+        uiStyle.titleHeight = cast(int) (baseSize * 1.75f);
+        if (baseSize <= 16) {
+        } else if (baseSize <= 64) {
             uiStyle.border = 2;
             uiStyle.spacing += 4;
             uiStyle.padding += 4;
@@ -200,8 +203,8 @@ void readyUi(UiFont font = null) {
 
 /// Initializes the microui context and sets custom text size functions. Value `font` should be a `FontId*`.
 nothrow @nogc
-void readyUi(UiTextWidthFunc width, UiTextHeightFunc height, UiFont font = null) {
-    readyUi(font);
+void readyUi(UiTextWidthFunc width, UiTextHeightFunc height, UiFont font = null, int fontScale) {
+    readyUi(font, fontScale);
     uiContext.textWidth = width;
     uiContext.textHeight = height;
 }
@@ -276,12 +279,14 @@ void drawUi() {
             case MU_COMMAND_TEXT:
                 auto text_font = cast(PFontId*) cmd.text.font;
                 parin_options.color = *(cast(Rgba*) (&cmd.text.color));
+                parin_options.scale = Vec2(uiStyle.fontScale, uiStyle.fontScale);
                 drawText(
                     *text_font,
                     cmd.text.str.ptr[0 .. cmd.text.len],
                     Vec2(cmd.text.pos.x, cmd.text.pos.y),
                     parin_options,
                 );
+                parin_options.scale = Vec2(1, 1);
                 break;
             case MU_COMMAND_RECT:
                 parin_options.color = *(cast(Rgba*) (&cmd.rect.color));
@@ -337,6 +342,7 @@ void drawUi() {
                         parin_options,
                     );
                 } else {
+                    parin_options.scale = Vec2(uiStyle.fontScale, uiStyle.fontScale);
                     const(char)[] icon = "?";
                     switch (cmd.icon.id) {
                         case MU_ICON_CLOSE: icon = "x"; break;
@@ -354,6 +360,7 @@ void drawUi() {
                         Vec2(cmd.icon.rect.x + icon_diff.x / 2, cmd.icon.rect.y + icon_diff.y / 2),
                         parin_options,
                     );
+                    parin_options.scale = Vec2(1, 1);
                 }
                 break;
             case MU_COMMAND_CLIP:

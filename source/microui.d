@@ -396,6 +396,7 @@ struct mu_Style {
     int scrollbarSpeed;                              /// The speed of the scrollbar.
     int scrollbarKeySpeed;                           /// The speed of the scrollbar key.
     int thumbSize;                                   /// The size of the thumb.
+    int fontScale;                                   /// The scale of the font.
     mu_Array!(mu_Color, MU_COLOR_MAX) colors;        /// The array of colors used in the UI.
     mu_Array!(mu_Rect, MU_ATLAS_MAX) atlasRects;     /// Optional array of control atlas rectangles used in the UI.
     mu_Array!(mu_Rect, MU_ICON_MAX) iconAtlasRects;  /// Optional array of icon atlas rectangles used in the UI.
@@ -805,7 +806,7 @@ pragma(inline, true) @safe nothrow @nogc pure {
 extern(C) @trusted:
 
 nothrow @nogc
-void mu_init(mu_Context* ctx, mu_Font font = null) {
+void mu_init(mu_Context* ctx, mu_Font font = null, int font_scale = 1) {
     memset(ctx, 0, (*ctx).sizeof);
     ctx.drawFrame = &draw_frame;
     ctx.textWidth = &mu_temp_text_width_func;
@@ -813,8 +814,8 @@ void mu_init(mu_Context* ctx, mu_Font font = null) {
     ctx._style = mu_Style(
         /* font | atlas | size | padding | spacing | indent | border */
         null, null, mu_Vec2(68, 10), 5, 4, 24, 1,
-        /* titleHeight | scrollbarSize | scrollbarSpeed | scrollbarKeySpeed | thumbSize */
-        24, 12, 30, cast(int) (30 * 0.4f), 8,
+        /* titleHeight | scrollbarSize | scrollbarSpeed | scrollbarKeySpeed | thumbSize | fontScale */
+        24, 12, 30, cast(int) (30 * 0.4f), 8, font_scale,
         mu_Array!(mu_Color, 14)(
             mu_Color(230, 230, 230, 255), /* MU_COLOR_TEXT */
             mu_Color(25,  25,  25,  255), /* MU_COLOR_BORDER */
@@ -838,8 +839,8 @@ void mu_init(mu_Context* ctx, mu_Font font = null) {
 }
 
 nothrow @nogc
-void mu_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeightFunc height, mu_Font font = null) {
-    mu_init(ctx, font);
+void mu_init_with_funcs(mu_Context* ctx, mu_TextWidthFunc width, mu_TextHeightFunc height, mu_Font font = null, int font_scale = 1) {
+    mu_init(ctx, font, font_scale);
     ctx.textWidth = width;
     ctx.textHeight = height;
 }
