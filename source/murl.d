@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: MIT
 // Email: alexandroskapretsos@gmail.com
 // Project: https://github.com/Kapendev/microui-d
-// Version: v0.0.5
 // ---
 
 // TODO: work on attributes maybe.
@@ -66,6 +65,7 @@ private extern(C) nothrow @nogc {
     void* memcpy(void* dest, const(void)* src, size_t count);
     Vector2 MeasureTextEx(Font font, const(char)* text, float fontSize, float spacing);
     Font GetFontDefault();
+    float GetMouseWheelMove();
     Vector2 GetMouseWheelMoveV();
     int GetMouseX();
     int GetMouseY();
@@ -136,20 +136,16 @@ void readyUi(UiTextWidthFunc width, UiTextHeightFunc height, UiFont font = null)
 /// Handles input events and updates the microui context accordingly.
 nothrow @nogc
 void handleUiInput() {
-    auto scroll = Vector2();
+    auto scroll = 0.0f;
     version (WebAssembly) {
-        scroll = -GetMouseWheelMoveV();
-        scroll.x *= -1;
-        scroll.y *= -1;
+        scroll = -GetMouseWheelMove();
     } version (OSX) {
-        scroll = GetMouseWheelMoveV();
-        scroll.x *= -1;
-        scroll.y *= -1;
+        scroll = -GetMouseWheelMove();
     } else {
-        scroll = GetMouseWheelMoveV();
+        scroll = GetMouseWheelMove();
     }
     with (UiMouseFlag) {
-        uiInputScroll(cast(int) scroll.x, cast(int) scroll.y);
+        uiInputScroll(cast(int) scroll, cast(int) scroll);
         uiInputMouseDown(GetMouseX(), GetMouseY(), IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ? left : none);
         uiInputMouseUp(GetMouseX(), GetMouseY(), IsMouseButtonReleased(MOUSE_BUTTON_LEFT) ? left : none);
     }

@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: MIT
 // Email: alexandroskapretsos@gmail.com
 // Project: https://github.com/Kapendev/microui-d
-// Version: v0.0.5
 // ---
 
+// TODO: Add more doc comments.
 // TODO: work on attributes maybe.
 
 /// High-level wrapper around the low-level `microui` module.
@@ -250,39 +250,34 @@ void updateUiPool(UiPoolItem* items, size_t idx) {
 ** input handlers
 **============================================================================*/
 
-nothrow @nogc
-void uiInputMouseMove(int x, int y) {
-    mu_input_mousemove(&uiContext, x, y);
-}
+nothrow @nogc {
+    void uiInputMouseMove(int x, int y) {
+        mu_input_mousemove(&uiContext, x, y);
+    }
 
-nothrow @nogc
-void uiInputMouseDown(int x, int y, UiMouseFlags input) {
-    mu_input_mousedown(&uiContext, x, y, input);
-}
+    void uiInputMouseDown(int x, int y, UiMouseFlags input) {
+        mu_input_mousedown(&uiContext, x, y, input);
+    }
 
-nothrow @nogc
-void uiInputMouseUp(int x, int y, UiMouseFlags input) {
-    mu_input_mouseup(&uiContext, x, y, input);
-}
+    void uiInputMouseUp(int x, int y, UiMouseFlags input) {
+        mu_input_mouseup(&uiContext, x, y, input);
+    }
 
-nothrow @nogc
-void uiInputScroll(int x, int y) {
-    mu_input_scroll(&uiContext, x, y);
-}
+    void uiInputScroll(int x, int y) {
+        mu_input_scroll(&uiContext, x, y);
+    }
 
-nothrow @nogc
-void uiInputKeyDown(UiKeyFlags input) {
-    mu_input_keydown(&uiContext, input);
-}
+    void uiInputKeyDown(UiKeyFlags input) {
+        mu_input_keydown(&uiContext, input);
+    }
 
-nothrow @nogc
-void uiInputKeyUp(UiKeyFlags input) {
-    mu_input_keyup(&uiContext, input);
-}
+    void uiInputKeyUp(UiKeyFlags input) {
+        mu_input_keyup(&uiContext, input);
+    }
 
-nothrow @nogc
-void uiInputText(const(char)[] text) {
-    mu_input_text(&uiContext, text);
+    void uiInputText(const(char)[] text) {
+        mu_input_text(&uiContext, text);
+    }
 }
 
 /*============================================================================

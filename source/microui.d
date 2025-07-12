@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: MIT
 // Email: alexandroskapretsos@gmail.com
 // Project: https://github.com/Kapendev/microui-d
-// Version: v0.0.5
 // ---
 
 /*
@@ -1016,50 +1015,45 @@ void mu_pool_update(mu_Context* ctx, mu_PoolItem* items, size_t idx) {
 ** input handlers
 **============================================================================*/
 
-nothrow @nogc
-void mu_input_mousemove(mu_Context* ctx, int x, int y) {
-    ctx.mousePos = mu_vec2(x, y);
-}
+nothrow @nogc {
+    void mu_input_mousemove(mu_Context* ctx, int x, int y) {
+        ctx.mousePos = mu_vec2(x, y);
+    }
 
-nothrow @nogc
-void mu_input_mousedown(mu_Context* ctx, int x, int y, mu_MouseFlags btn) {
-    mu_input_mousemove(ctx, x, y);
-    ctx.mouseDown |= btn;
-    ctx.mousePressed |= btn;
-}
+    void mu_input_mousedown(mu_Context* ctx, int x, int y, mu_MouseFlags btn) {
+        mu_input_mousemove(ctx, x, y);
+        ctx.mouseDown |= btn;
+        ctx.mousePressed |= btn;
+    }
 
-nothrow @nogc
-void mu_input_mouseup(mu_Context* ctx, int x, int y, mu_MouseFlags btn) {
-    mu_input_mousemove(ctx, x, y);
-    ctx.mouseDown &= ~btn;
-}
+    void mu_input_mouseup(mu_Context* ctx, int x, int y, mu_MouseFlags btn) {
+        mu_input_mousemove(ctx, x, y);
+        ctx.mouseDown &= ~btn;
+    }
 
-nothrow @nogc
-void mu_input_scroll(mu_Context* ctx, int x, int y) {
-    ctx.scrollDelta.x += x * -ctx.style.scrollbarSpeed;
-    ctx.scrollDelta.y += y * -ctx.style.scrollbarSpeed;
-}
+    void mu_input_scroll(mu_Context* ctx, int x, int y) {
+        ctx.scrollDelta.x += x * -ctx.style.scrollbarSpeed;
+        ctx.scrollDelta.y += y * -ctx.style.scrollbarSpeed;
+    }
 
-nothrow @nogc
-void mu_input_keydown(mu_Context* ctx, mu_KeyFlags key) {
-    ctx.keyPressed |= key;
-    ctx.keyDown |= key;
-}
+    void mu_input_keydown(mu_Context* ctx, mu_KeyFlags key) {
+        ctx.keyPressed |= key;
+        ctx.keyDown |= key;
+    }
 
-nothrow @nogc
-void mu_input_keyup(mu_Context* ctx, mu_KeyFlags key) {
-    ctx.keyDown &= ~key;
-}
+    void mu_input_keyup(mu_Context* ctx, mu_KeyFlags key) {
+        ctx.keyDown &= ~key;
+    }
 
-nothrow @nogc
-void mu_input_text(mu_Context* ctx, const(char)[] text) {
-    size_t len = ctx.inputTextSlice.length;
-    size_t size = text.length;
-    mu_expect(len + size < ctx.inputText.sizeof);
-    memcpy(ctx.inputText.ptr + len, text.ptr, size);
-    // Added this to make it work with slices.
-    ctx.inputText[len + size] = '\0';
-    ctx.inputTextSlice = ctx.inputText[0 .. len + size];
+    void mu_input_text(mu_Context* ctx, const(char)[] text) {
+        size_t len = ctx.inputTextSlice.length;
+        size_t size = text.length;
+        mu_expect(len + size < ctx.inputText.sizeof);
+        memcpy(ctx.inputText.ptr + len, text.ptr, size);
+        // Added this to make it work with slices.
+        ctx.inputText[len + size] = '\0';
+        ctx.inputTextSlice = ctx.inputText[0 .. len + size];
+    }
 }
 
 /*============================================================================
