@@ -7,13 +7,10 @@ import parin;
 
 auto font = engineFont;
 
-enum s = 2;
-enum w = 320 * s;
-enum h = 180 * s;
-
 void ready() {
-    readyUi(&font, s);
-    uiStyle.size.x = 200 * s;
+    auto scale = 2;
+    readyUi(&font, scale);
+    uiStyle.size.x = 200 * scale;
 }
 
 bool update(float dt) { with (UiOptFlag) {

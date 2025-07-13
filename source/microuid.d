@@ -328,21 +328,33 @@ void uiRow(int height, const(int)[] widths...) {
     mu_layout_row(&uiContext, height, widths);
 }
 
-void setLayoutWidth(int width) {
+void setUiLayoutWidth(int width) {
     mu_layout_width(&uiContext, width);
 }
 
-void setLayoutHeight(int height) {
+deprecated("Use `setUiLayoutWidth` instead.")
+alias setLayoutWidth = setUiLayoutWidth;
+
+void setUiLayoutHeight(int height) {
     mu_layout_height(&uiContext, height);
 }
 
-void setNextLayout(UiRect rect, bool relative) {
+deprecated("Use `setUiLayoutHeight` instead.")
+alias setLayoutHeight = setUiLayoutHeight;
+
+void setNextUiLayout(UiRect rect, bool relative) {
     mu_layout_set_next(&uiContext, rect, relative);
 }
 
-UiRect nextLayout() {
+deprecated("Use `setNextUiLayout` instead.")
+alias setNextLayout = setNextUiLayout;
+
+UiRect nextUiLayout() {
     return mu_layout_next(&uiContext);
 }
+
+deprecated("Use `nextUiLayout` instead.")
+alias nextLayout = nextUiLayout;
 
 /*============================================================================
 ** controls
