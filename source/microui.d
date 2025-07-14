@@ -193,10 +193,14 @@ enum : mu_KeyFlags {
     MU_KEY_RIGHT     = (1 << 7),  /// Right key down.
     MU_KEY_UP        = (1 << 8),  /// Up key down.
     MU_KEY_DOWN      = (1 << 9),  /// Down key down.
-    MU_KEY_HOME      = (1 << 10), /// Down key home.
-    MU_KEY_END       = (1 << 11), /// Down key end.
-    MU_KEY_PAGEUP    = (1 << 12), /// Down key page up.
-    MU_KEY_PAGEDOWN  = (1 << 13), /// Down key page down.
+    MU_KEY_HOME      = (1 << 10), /// Home key down.
+    MU_KEY_END       = (1 << 11), /// End key down.
+    MU_KEY_PAGEUP    = (1 << 12), /// Page up key down.
+    MU_KEY_PAGEDOWN  = (1 << 13), /// Page down key down.
+    MU_KEY_F1        = (1 << 14), /// F1 key down.
+    MU_KEY_F2        = (1 << 15), /// F2 key down.
+    MU_KEY_F3        = (1 << 16), /// F3 key down.
+    MU_KEY_F4        = (1 << 17), /// F4 key down.
 }
 
 /// A static array allocated on the stack.
@@ -426,8 +430,10 @@ struct mu_Context {
     mu_Container* scrollTarget;
     char[MU_MAX_FMT] numberEditBuffer;
     mu_Id numberEdit;
-    bool isExpectingEnd; // Used for missing `mu_end` call.
-    uint buttonCounter;  // Used to avoid id problems.
+    bool isExpectingEnd;         // Used for missing `mu_end` call.
+    uint buttonCounter;          // Used to avoid id problems.
+    mu_KeyFlags dragWindowKey;   // Used for window stuff.
+    mu_KeyFlags resizeWindowKey; // Used for window stuff.
 
     // -- Stacks
     mu_Stack!(char, MU_COMMANDLIST_SIZE) commandList;
@@ -541,8 +547,8 @@ private @trusted {
         return false;
     }
 
-    bool number_textbox(mu_Context* ctx, mu_Real* value, mu_Rect r, mu_Id id) {
-        if (ctx.mousePressed == MU_MOUSE_LEFT && ctx.keyDown & MU_KEY_SHIFT && ctx.hover == id) {
+    mu_ResFlags number_textbox(mu_Context* ctx, mu_Real* value, mu_Rect r, mu_Id id) {
+        if (ctx.mousePressed & MU_MOUSE_LEFT && ctx.keyDown & MU_KEY_SHIFT && ctx.hover == id) {
             ctx.numberEdit = id;
             sprintf(ctx.numberEditBuffer.ptr, MU_REAL_FMT, *value);
         }
@@ -552,10 +558,10 @@ private @trusted {
                 *value = strtod(ctx.numberEditBuffer.ptr, null);
                 ctx.numberEdit = 0;
             } else {
-                return true;
+                return MU_RES_ACTIVE;
             }
         }
-        return false;
+        return MU_RES_NONE;
     }
 
     mu_ResFlags header(mu_Context* ctx, const(char)[] label, int istreenode, mu_OptFlags opt) {
@@ -571,7 +577,7 @@ private @trusted {
         mu_update_control(ctx, id, r, 0);
 
         /* handle click */
-        active ^= (ctx.mousePressed == MU_MOUSE_LEFT && ctx.focus == id);
+        active ^= (ctx.mousePressed & MU_MOUSE_LEFT && ctx.focus == id);
         /* update pool ref */
         if (idx >= 0) {
             if (active) { mu_pool_update(ctx, ctx.treeNodePool.ptr, idx); }
@@ -811,6 +817,8 @@ void mu_init(mu_Context* ctx, mu_Font font = null, int font_scale = 1) {
     ctx.drawFrame = &draw_frame;
     ctx.textWidth = &mu_temp_text_width_func;
     ctx.textHeight = &mu_temp_text_height_func;
+    ctx.dragWindowKey = MU_KEY_F1;
+    ctx.resizeWindowKey = MU_KEY_F2;
     ctx._style = mu_Style(
         /* font | atlas | size | padding | spacing | indent | border */
         null, null, mu_Vec2(68, 10), 5, 4, 24, 1,
@@ -1282,20 +1290,23 @@ bool mu_mouse_over(mu_Context* ctx, mu_Rect rect) {
     return mu_rect_overlaps_vec2(rect, ctx.mousePos) && mu_rect_overlaps_vec2(mu_get_clip_rect(ctx), ctx.mousePos) && in_hover_root(ctx);
 }
 
-void mu_update_control(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_OptFlags opt) {
-    bool mouseover = mu_mouse_over(ctx, rect);
+void mu_update_control(mu_Context* ctx, mu_Id id, mu_Rect rect, mu_OptFlags opt, bool isDragOrResizeControl = false, mu_MouseFlags action = MU_MOUSE_LEFT) {
+    if (!isDragOrResizeControl) {
+        if (ctx.keyDown & ctx.dragWindowKey || ctx.keyDown & ctx.resizeWindowKey) { return; }
+    }
 
+    bool mouseover = mu_mouse_over(ctx, rect);
     if (ctx.focus == 0 && opt & MU_OPT_DEFAULTFOCUS) { mu_set_focus(ctx, id); }
 
     if (ctx.focus == id) { ctx.updatedFocus = true; }
     if (opt & MU_OPT_NOINTERACT) { return; }
-    if (mouseover && !ctx.mouseDown) { ctx.hover = id; }
+    if (mouseover && !(ctx.mouseDown & action)) { ctx.hover = id; }
     if (ctx.focus == id && ~opt & MU_OPT_DEFAULTFOCUS) {
-        if (ctx.mousePressed && !mouseover) { mu_set_focus(ctx, 0); }
-        if (!ctx.mouseDown && ~opt & MU_OPT_HOLDFOCUS) { mu_set_focus(ctx, 0); }
+        if (ctx.mousePressed & action && !mouseover) { mu_set_focus(ctx, 0); }
+        if (!(ctx.mouseDown & action) && ~opt & MU_OPT_HOLDFOCUS) { mu_set_focus(ctx, 0); }
     }
     if (ctx.hover == id) {
-        if (ctx.mousePressed) {
+        if (ctx.mousePressed & action) {
             mu_set_focus(ctx, id);
         } else if (!mouseover) {
             ctx.hover = 0;
@@ -1356,9 +1367,9 @@ mu_ResFlags mu_button_ex_legacy(mu_Context* ctx, const(char)[] label, mu_IconEnu
     /* handle click */
     if (ctx.focus == id) {
         if (opt & MU_OPT_DEFAULTFOCUS) {
-            if (ctx.keyPressed == MU_KEY_RETURN || (ctx.hover == id && ctx.mousePressed == MU_MOUSE_LEFT)) { res |= MU_RES_SUBMIT; }
+            if (ctx.keyPressed & MU_KEY_RETURN || (ctx.hover == id && ctx.mousePressed & MU_MOUSE_LEFT)) { res |= MU_RES_SUBMIT; }
         } else {
-            if (ctx.mousePressed == MU_MOUSE_LEFT) { res |= MU_RES_SUBMIT; }
+            if (ctx.mousePressed & MU_MOUSE_LEFT) { res |= MU_RES_SUBMIT; }
         }
     }
     /* draw */
@@ -1388,7 +1399,7 @@ mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, bool* state) {
     mu_Rect box = mu_rect(r.x, r.y, r.h, r.h);
     mu_update_control(ctx, id, r, 0);
     /* handle click */
-    if (ctx.mousePressed == MU_MOUSE_LEFT && ctx.focus == id) {
+    if (ctx.mousePressed & MU_MOUSE_LEFT && ctx.focus == id) {
         res |= MU_RES_CHANGE;
         *state = !*state;
     }
@@ -1514,7 +1525,7 @@ mu_ResFlags mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real h
     /* handle normal mode */
     mu_update_control(ctx, id, base, opt);
     /* handle input */
-    if (ctx.focus == id && (ctx.mouseDown | ctx.mousePressed) == MU_MOUSE_LEFT) {
+    if (ctx.focus == id && (ctx.mouseDown | ctx.mousePressed) & MU_MOUSE_LEFT) {
         v = low + (ctx.mousePos.x - base.x) * (high - low) / base.w;
         if (step) { v = (cast(long) ((v + step / 2) / step)) * step; }
     }
@@ -1559,7 +1570,7 @@ mu_ResFlags mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(ch
     /* handle normal mode */
     mu_update_control(ctx, id, base, opt);
     /* handle input */
-    if (ctx.focus == id && ctx.mouseDown == MU_MOUSE_LEFT) { *value += ctx.mouseDelta.x * step; }
+    if (ctx.focus == id && ctx.mouseDown & MU_MOUSE_LEFT) { *value += ctx.mouseDelta.x * step; }
     /* set flag if value changed */
     if (*value != last) { res |= MU_RES_CHANGE; }
 
@@ -1621,8 +1632,8 @@ void mu_scrollbar_y(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
         mouse_area.h += ctx.style.scrollbarSize;
         /* handle input */
         mu_update_control(ctx, id, base, 0);
-        if (ctx.focus == id && ctx.mouseDown == MU_MOUSE_LEFT) {
-            if (ctx.mousePressed == MU_MOUSE_LEFT) {
+        if (ctx.focus == id && ctx.mouseDown & MU_MOUSE_LEFT) {
+            if (ctx.mousePressed & MU_MOUSE_LEFT) {
                 cnt.scroll.y = ((ctx.mousePos.y - base.y - thumb.h / 2) * maxscroll) / (base.h - thumb.h);
             } else {
                 cnt.scroll.y += ctx.mouseDelta.y * cs.y / base.h;
@@ -1673,8 +1684,8 @@ void mu_scrollbar_x(mu_Context* ctx, mu_Container* cnt, mu_Rect* b, mu_Vec2 cs) 
         mouse_area.h += ctx.style.scrollbarSize;
         /* handle input */
         mu_update_control(ctx, id, base, 0);
-        if (ctx.focus == id && ctx.mouseDown == MU_MOUSE_LEFT) {
-            if (ctx.mousePressed == MU_MOUSE_LEFT) {
+        if (ctx.focus == id && ctx.mouseDown & MU_MOUSE_LEFT) {
+            if (ctx.mousePressed & MU_MOUSE_LEFT) {
                 cnt.scroll.x = ((ctx.mousePos.x - base.x - thumb.w / 2) * maxscroll) / (base.w - thumb.w);
             } else {
                 cnt.scroll.x += ctx.mouseDelta.x * cs.x / base.w;
@@ -1732,12 +1743,20 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
         ctx.drawFrame(ctx, tr, MU_COLOR_TITLEBG);
         /* do title text */
         if (~opt & MU_OPT_NOTITLE) {
-            mu_Id id2 = mu_get_id_str(ctx, "!title"); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
-            mu_update_control(ctx, id2, tr, opt);
             if (~opt & MU_OPT_NONAME) { mu_draw_control_text(ctx, title, tr, MU_COLOR_TITLETEXT, opt); }
-            if (id2 == ctx.focus && ctx.mouseDown == MU_MOUSE_LEFT) {
-                cnt.rect.x += ctx.mouseDelta.x;
-                cnt.rect.y += ctx.mouseDelta.y;
+            mu_Id id2 = mu_get_id_str(ctx, "!title"); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
+            if (ctx.keyDown & ctx.dragWindowKey) {
+                mu_update_control(ctx, id2, body, opt, true);
+                if (id2 == ctx.focus && ctx.mouseDown & MU_MOUSE_LEFT) {
+                    cnt.rect.x += ctx.mouseDelta.x;
+                    cnt.rect.y += ctx.mouseDelta.y;
+                }
+            } else {
+                mu_update_control(ctx, id2, tr, opt);
+                if (id2 == ctx.focus && ctx.mouseDown & MU_MOUSE_LEFT) {
+                    cnt.rect.x += ctx.mouseDelta.x;
+                    cnt.rect.y += ctx.mouseDelta.y;
+                }
             }
             body.y += tr.h;
             body.h -= tr.h;
@@ -1749,7 +1768,7 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
             tr.w -= r.w;
             mu_draw_icon(ctx, MU_ICON_CLOSE, r, ctx.style.colors[MU_COLOR_TITLETEXT]);
             mu_update_control(ctx, id2, r, opt);
-            if (ctx.mousePressed == MU_MOUSE_LEFT && id2 == ctx.focus) { cnt.open = false; }
+            if (ctx.mousePressed & MU_MOUSE_LEFT && id2 == ctx.focus) { cnt.open = false; }
         }
     }
 
@@ -1760,10 +1779,18 @@ mu_ResFlags mu_begin_window_ex(mu_Context* ctx, const(char)[] title, mu_Rect rec
         int sz = ctx.style.scrollbarSize; // RXI, WHY WAS THIS USING THE TITLE HEIGHT?
         mu_Id id2 = mu_get_id_str(ctx, "!resize"); // NOTE(Kapendev): Had to change `id` to `id2` because of shadowing.
         mu_Rect r = mu_rect(rect.x + rect.w - sz, rect.y + rect.h - sz, sz, sz);
-        mu_update_control(ctx, id2, r, opt);
-        if (id2 == ctx.focus && ctx.mouseDown == MU_MOUSE_LEFT) {
-            cnt.rect.w = mu_max(96, cnt.rect.w + ctx.mouseDelta.x);
-            cnt.rect.h = mu_max(64, cnt.rect.h + ctx.mouseDelta.y);
+        if (ctx.keyDown & ctx.resizeWindowKey) {
+            mu_update_control(ctx, id2, body, opt, true);
+            if (id2 == ctx.focus && ctx.mouseDown & MU_MOUSE_LEFT) {
+                cnt.rect.w = mu_max(96, cnt.rect.w + ctx.mouseDelta.x);
+                cnt.rect.h = mu_max(64, cnt.rect.h + ctx.mouseDelta.y);
+            }
+        } else {
+            mu_update_control(ctx, id2, r, opt);
+            if (id2 == ctx.focus && ctx.mouseDown & MU_MOUSE_LEFT) {
+                cnt.rect.w = mu_max(96, cnt.rect.w + ctx.mouseDelta.x);
+                cnt.rect.h = mu_max(64, cnt.rect.h + ctx.mouseDelta.y);
+            }
         }
     }
     /* resize to content size */

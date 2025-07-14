@@ -37,6 +37,10 @@ private extern(C) nothrow @nogc {
     enum KEY_END             = 269;
     enum KEY_PAGE_UP         = 266;
     enum KEY_PAGE_DOWN       = 267;
+    enum KEY_F1              = 290;
+    enum KEY_F2              = 291;
+    enum KEY_F3              = 292;
+    enum KEY_F4              = 293;
 
     struct Color { ubyte r, g, b, a; }
     struct Vector2 { float x, y; }
@@ -149,6 +153,10 @@ void handleUiInput() {
         uiInputScroll(cast(int) scroll, cast(int) scroll);
         uiInputMouseDown(GetMouseX(), GetMouseY(), IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ? left : none);
         uiInputMouseUp(GetMouseX(), GetMouseY(), IsMouseButtonReleased(MOUSE_BUTTON_LEFT) ? left : none);
+        uiInputMouseDown(GetMouseX(), GetMouseY(), IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) ? right : none);
+        uiInputMouseUp(GetMouseX(), GetMouseY(), IsMouseButtonReleased(MOUSE_BUTTON_RIGHT) ? right : none);
+        uiInputMouseDown(GetMouseX(), GetMouseY(), IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) ? middle : none);
+        uiInputMouseUp(GetMouseX(), GetMouseY(), IsMouseButtonReleased(MOUSE_BUTTON_MIDDLE) ? middle : none);
     }
 
     with (UiKeyFlag) {
@@ -170,6 +178,10 @@ void handleUiInput() {
         uiInputKeyDown(IsKeyPressed(KEY_END) ? end : none);
         uiInputKeyDown(IsKeyPressed(KEY_PAGE_UP) ? pageUp : none);
         uiInputKeyDown(IsKeyPressed(KEY_PAGE_DOWN) ? pageDown : none);
+        uiInputKeyDown(IsKeyPressed(KEY_F1) ? f1 : none);
+        uiInputKeyDown(IsKeyPressed(KEY_F2) ? f2 : none);
+        uiInputKeyDown(IsKeyPressed(KEY_F3) ? f3 : none);
+        uiInputKeyDown(IsKeyPressed(KEY_F4) ? f4 : none);
 
         uiInputKeyUp(IsKeyReleased(KEY_LEFT_SHIFT) ? shift : none);
         uiInputKeyUp(IsKeyReleased(KEY_RIGHT_SHIFT) ? shift : none);
@@ -189,6 +201,10 @@ void handleUiInput() {
         uiInputKeyUp(IsKeyReleased(KEY_END) ? end : none);
         uiInputKeyUp(IsKeyReleased(KEY_PAGE_UP) ? pageUp : none);
         uiInputKeyUp(IsKeyReleased(KEY_PAGE_DOWN) ? pageDown : none);
+        uiInputKeyUp(IsKeyReleased(KEY_F1) ? f1 : none);
+        uiInputKeyUp(IsKeyReleased(KEY_F2) ? f2 : none);
+        uiInputKeyUp(IsKeyReleased(KEY_F3) ? f3 : none);
+        uiInputKeyUp(IsKeyReleased(KEY_F4) ? f4 : none);
     }
 
     char[128] charBuffer = void;

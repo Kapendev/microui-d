@@ -147,10 +147,14 @@ enum UiKeyFlag : mu_KeyFlags {
     right     = MU_KEY_RIGHT,     /// Right key down.
     up        = MU_KEY_UP,        /// Up key down.
     down      = MU_KEY_DOWN,      /// Down key down.
-    home      = MU_KEY_HOME,      /// Down key home.
-    end       = MU_KEY_END,       /// Down key end.
-    pageUp    = MU_KEY_PAGEUP,    /// Down key page up.
-    pageDown  = MU_KEY_PAGEDOWN,  /// Down key page down.
+    home      = MU_KEY_HOME,      /// Home key down.
+    end       = MU_KEY_END,       /// End key down.
+    pageUp    = MU_KEY_PAGEUP,    /// Page up key up.
+    pageDown  = MU_KEY_PAGEDOWN,  /// Page down key down.
+    f1        = MU_KEY_F1,        /// F1 key down.
+    f2        = MU_KEY_F2,        /// F2 key down.
+    f3        = MU_KEY_F3,        /// F3 key down.
+    f4        = MU_KEY_F4,        /// F4 key down.
 }
 
 @trusted:
