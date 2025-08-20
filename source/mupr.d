@@ -144,18 +144,17 @@ private extern(C) nothrow @nogc {
         GenIndex data;
     }
 
-    ref PFont getFontData(PFontId id);
-    int windowWidth();
-    int windowHeight();
-    Vec2 mouse();
-    float deltaWheel();
-    bool isPressedMouse(Mouse key);
-    bool isReleasedMouse(Mouse key);
-    Vec2 measureTextSizeX(PFont font, IStr text, DrawOptions options = DrawOptions(), TextOptions extra = TextOptions());
-    Vec2 measureTextSize(PFontId font, IStr text, DrawOptions options = DrawOptions(), TextOptions extra = TextOptions());
-    void drawTextureArea(PTextureId texture, Rect area, Vec2 position, DrawOptions options = DrawOptions());
-    void drawText(PFontId font, IStr text, Vec2 position, DrawOptions options = DrawOptions(), TextOptions extra = TextOptions());
-    void drawRect(Rect area, Rgba color = Rgba(255, 255, 255, 255));
+    PFont* prFontIdGet(PFontId* self);
+    int prWindowWidth();
+    int prWindowHeight();
+    Vec2 prMouse();
+    float prDeltaWheel();
+    bool prIsPressedMouse(Mouse key);
+    bool prIsReleasedMouse(Mouse key);
+    Vec2 prMeasureTextSizeId(PFontId font, IStr text, DrawOptions options, TextOptions extra);
+    void prDrawTextureAreaId(PTextureId texture, Rect area, Vec2 position, DrawOptions options);
+    void prDrawTextId(PFontId font, IStr text, Vec2 position, DrawOptions options, TextOptions extra);
+    void prDrawRect(Rect area, Rgba color);
 }
 
 @trusted:
@@ -166,13 +165,13 @@ private int muprTempTextWidthFunc(mu_Font font, const(char)[] str) {
     auto da = cast(PFontId*) font;
     auto options = DrawOptions();
     options.scale = Vec2(uiStyle.fontScale, uiStyle.fontScale);
-    return cast(int) measureTextSize(*da, str, options).x;
+    return cast(int) prMeasureTextSizeId(*da, str, options, TextOptions()).x;
 }
 // Temporary text measurement function for prototyping.
 nothrow @nogc
 private int muprTempTextHeightFunc(mu_Font font) {
     auto da = cast(PFontId*) font;
-    auto data = cast(Font*) &getFontData(*da);
+    auto data = cast(Font*) prFontIdGet(da);
     return data.baseSize * uiStyle.fontScale;
 }
 
@@ -182,7 +181,7 @@ void readyUi(UiFont font = null, int fontScale = 1) {
     readyUiCore(&muprTempTextWidthFunc, &muprTempTextHeightFunc, font, fontScale);
     auto da = cast(PFontId*) uiStyle.font;
     if (da) {
-        auto data = cast(Font*) &getFontData(*da);
+        auto data = cast(Font*) prFontIdGet(da);
         auto baseSize = data.baseSize * uiStyle.fontScale;
         uiStyle.size = UiVec(baseSize * 6, baseSize);
         uiStyle.titleHeight = cast(int) (baseSize * 1.4f);
@@ -217,13 +216,13 @@ void readyUi(UiTextWidthFunc width, UiTextHeightFunc height, UiFont font = null,
 nothrow @nogc
 void handleUiInput() {
     with (UiMouseFlag) {
-        uiInputScroll(cast(int) deltaWheel, cast(int) deltaWheel);
-        uiInputMouseDown(cast(int) mouse.x, cast(int) mouse.y, isPressedMouse(Mouse.left) ? left : none);
-        uiInputMouseUp(cast(int) mouse.x, cast(int) mouse.y, isReleasedMouse(Mouse.left) ? left : none);
-        uiInputMouseDown(cast(int) mouse.x, cast(int) mouse.y, isPressedMouse(Mouse.right) ? right : none);
-        uiInputMouseUp(cast(int) mouse.x, cast(int) mouse.y, isReleasedMouse(Mouse.right) ? right : none);
-        uiInputMouseDown(cast(int) mouse.x, cast(int) mouse.y, isPressedMouse(Mouse.middle) ? middle : none);
-        uiInputMouseUp(cast(int) mouse.x, cast(int) mouse.y, isReleasedMouse(Mouse.middle) ? middle : none);
+        uiInputScroll(cast(int) prDeltaWheel, cast(int) prDeltaWheel);
+        uiInputMouseDown(cast(int) prMouse.x, cast(int) prMouse.y, prIsPressedMouse(Mouse.left) ? left : none);
+        uiInputMouseUp(cast(int) prMouse.x, cast(int) prMouse.y, prIsReleasedMouse(Mouse.left) ? left : none);
+        uiInputMouseDown(cast(int) prMouse.x, cast(int) prMouse.y, prIsPressedMouse(Mouse.right) ? right : none);
+        uiInputMouseUp(cast(int) prMouse.x, cast(int) prMouse.y, prIsReleasedMouse(Mouse.right) ? right : none);
+        uiInputMouseDown(cast(int) prMouse.x, cast(int) prMouse.y, prIsPressedMouse(Mouse.middle) ? middle : none);
+        uiInputMouseUp(cast(int) prMouse.x, cast(int) prMouse.y, prIsReleasedMouse(Mouse.middle) ? middle : none);
     }
 
     with (UiKeyFlag) {
@@ -288,7 +287,7 @@ void drawUi() {
     auto style_font = cast(PFontId*) uiStyle.font;
     auto style_texture = cast(PTextureId*) uiStyle.texture;
     auto parin_options = DrawOptions(); // We just change the color, so it should be fine.
-    BeginScissorMode(0, 0, windowWidth, windowHeight);
+    BeginScissorMode(0, 0, prWindowWidth, prWindowHeight);
     UiCommand *cmd;
     while (nextUiCommand(&cmd)) {
         switch (cmd.type) {
@@ -296,11 +295,12 @@ void drawUi() {
                 auto text_font = cast(PFontId*) cmd.text.font;
                 parin_options.color = *(cast(Rgba*) (&cmd.text.color));
                 parin_options.scale = Vec2(uiStyle.fontScale, uiStyle.fontScale);
-                drawText(
+                prDrawTextId(
                     *text_font,
                     cmd.text.str.ptr[0 .. cmd.text.len],
                     Vec2(cmd.text.pos.x, cmd.text.pos.y),
                     parin_options,
+                    TextOptions(),
                 );
                 parin_options.scale = Vec2(1, 1);
                 break;
@@ -317,7 +317,7 @@ void drawUi() {
                                 foreach (x; 0 .. part.tileCount.x) {
                                     auto source_w = (x != part.tileCount.x - 1) ? part.source.w : mu_max(0, part.target.w - x * part.source.w);
                                     auto source_h = (y != part.tileCount.y - 1) ? part.source.h : mu_max(0, part.target.h - y * part.source.h);
-                                    drawTextureArea(
+                                    prDrawTextureAreaId(
                                         *style_texture,
                                         Rect(part.source.x, part.source.y, source_w, source_h),
                                         Vec2(part.target.x + x * part.source.w, part.target.y + y * part.source.h),
@@ -330,7 +330,7 @@ void drawUi() {
                                 part.target.w / cast(float) part.source.w,
                                 part.target.h / cast(float) part.source.h,
                             );
-                            drawTextureArea(
+                            prDrawTextureAreaId(
                                 *style_texture,
                                 Rect(part.source.x, part.source.y, part.source.w, part.source.h),
                                 Vec2(part.target.x, part.target.y),
@@ -340,7 +340,7 @@ void drawUi() {
                     }
                     parin_options.scale = Vec2(1, 1);
                 } else {
-                    drawRect(
+                    prDrawRect(
                         Rect(cmd.rect.rect.x, cmd.rect.rect.y, cmd.rect.rect.w, cmd.rect.rect.h),
                         parin_options.color,
                     );
@@ -351,7 +351,7 @@ void drawUi() {
                 auto icon_atlas_rect = uiStyle.iconAtlasRects[cmd.icon.id];
                 auto icon_diff = UiVec(cmd.icon.rect.w - icon_atlas_rect.w, cmd.icon.rect.h - icon_atlas_rect.h);
                 if (style_texture && icon_atlas_rect.hasSize) {
-                    drawTextureArea(
+                    prDrawTextureAreaId(
                         *style_texture,
                         Rect(icon_atlas_rect.x, icon_atlas_rect.y, icon_atlas_rect.w, icon_atlas_rect.h),
                         Vec2(cmd.icon.rect.x + icon_diff.x / 2, cmd.icon.rect.y + icon_diff.y / 2),
@@ -370,11 +370,12 @@ void drawUi() {
                     auto icon_width = uiContext.textWidth(style_font, icon);
                     auto icon_height = uiContext.textHeight(style_font);
                     icon_diff = UiVec(cmd.icon.rect.w - icon_width, cmd.icon.rect.h - icon_height);
-                    drawText(
+                    prDrawTextId(
                         *style_font,
                         icon,
                         Vec2(cmd.icon.rect.x + icon_diff.x / 2, cmd.icon.rect.y + icon_diff.y / 2),
                         parin_options,
+                        TextOptions(),
                     );
                     parin_options.scale = Vec2(1, 1);
                 }
