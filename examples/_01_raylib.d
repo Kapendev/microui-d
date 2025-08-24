@@ -1,8 +1,8 @@
 /// This example shows how to use microui with raylib.
 /// It assumes you are using: https://github.com/schveiguy/raylib-d
 
-import murl; // Equivalent to `import microuid`, with additional helper functions for raylib.
 import raylib;
+import murl; // Equivalent to `import microuid`, with additional helper functions for raylib.
 
 void main() {
     // Create the window and UI context.

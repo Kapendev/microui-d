@@ -10,6 +10,7 @@
 /// Equivalent to `import microuid`, with additional helper functions for raylib.
 module murl;
 
+import microui; // Used because there are some symbols that I haven't removed yet.
 public import microuid;
 
 private extern(C) nothrow @nogc {
@@ -91,20 +92,20 @@ private extern(C) nothrow @nogc {
 
 // Temporary text measurement function for prototyping.
 nothrow @nogc
-private int murlTempTextWidthFunc(mu_Font font, const(char)[] str) {
+private int murlTempTextWidthFunc(UiFont font, const(char)[] str) {
     auto data = cast(Font*) font;
     return cast(int) MeasureTextEx(*data, str.ptr, data.baseSize * uiStyle.fontScale, uiStyle.fontScale).x;
 }
 // Temporary text measurement function for prototyping.
 nothrow @nogc
-private int murlTempTextHeightFunc(mu_Font font) {
+private int murlTempTextHeightFunc(UiFont font) {
     auto data = cast(Font*) font;
     return data.baseSize * uiStyle.fontScale;
 }
 
 /// Initializes the microui context and sets temporary text size functions. Value `font` should be a `Font*`.
 nothrow @nogc
-void readyUi(mu_Font font = null, int fontScale = 1) {
+void readyUi(UiFont font = null, int fontScale = 1) {
     readyUiCore(&murlTempTextWidthFunc, &murlTempTextHeightFunc, font, fontScale);
     auto data = cast(Font*) uiStyle.font;
     if (data) {

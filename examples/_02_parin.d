@@ -1,8 +1,8 @@
 /// This example shows how to use microui with Parin.
 /// Parin: https://github.com/Kapendev/parin
 
-import mupr; // Equivalent to `import microuid`, with additional helper functions for Parin.
 import parin;
+import mupr; // Equivalent to `import microuid`, with additional helper functions for Parin.
 
 char[512] buffer = '\0';
 auto number = 0.0f;

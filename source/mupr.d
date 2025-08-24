@@ -10,6 +10,7 @@
 /// Equivalent to `import microuid`, with additional helper functions for Parin.
 module mupr;
 
+import microui; // Used because there are some symbols that I haven't removed yet.
 public import microuid;
 
 private extern(C) nothrow @nogc {
@@ -91,8 +92,8 @@ private extern(C) nothrow @nogc {
     alias Sz = size_t;
 
     struct GenIndex {
-        Sz value;
-        Sz generation;
+        uint value;
+        uint generation;
     }
 
     alias Rect = Rectangle;
@@ -161,7 +162,7 @@ private extern(C) nothrow @nogc {
 
 // Temporary text measurement function for prototyping.
 nothrow @nogc
-private int muprTempTextWidthFunc(mu_Font font, const(char)[] str) {
+private int muprTempTextWidthFunc(UiFont font, const(char)[] str) {
     auto da = cast(PFontId*) font;
     auto options = DrawOptions();
     options.scale = Vec2(uiStyle.fontScale, uiStyle.fontScale);
@@ -169,7 +170,7 @@ private int muprTempTextWidthFunc(mu_Font font, const(char)[] str) {
 }
 // Temporary text measurement function for prototyping.
 nothrow @nogc
-private int muprTempTextHeightFunc(mu_Font font) {
+private int muprTempTextHeightFunc(UiFont font) {
     auto da = cast(PFontId*) font;
     auto data = cast(Font*) prFontIdGet(da);
     return data.baseSize * uiStyle.fontScale;

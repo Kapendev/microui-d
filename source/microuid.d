@@ -12,7 +12,7 @@
 /// Provides helper functions that use a global context and follow D naming conventions.
 module microuid;
 
-public import microui;
+import microui;
 
 __gshared UiContext uiContext;
 
