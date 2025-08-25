@@ -1398,7 +1398,7 @@ mu_ResFlags mu_checkbox(mu_Context* ctx, const(char)[] label, bool* state) {
     mu_Id id = mu_get_id(ctx, &state, state.sizeof);
     mu_Rect r = mu_layout_next(ctx);
     mu_Rect box = mu_rect(r.x, r.y, r.h, r.h);
-    mu_update_control(ctx, id, r, 0);
+    mu_update_control(ctx, id, box, 0); // NOTE(Kapendev): Why was this r and not box???
     /* handle click */
     if (ctx.mousePressed & MU_MOUSE_LEFT && ctx.focus == id) {
         res |= MU_RES_CHANGE;

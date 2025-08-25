@@ -160,19 +160,19 @@ enum UiKeyFlag : mu_KeyFlags {
 /// Used by the `members` function.
 struct UiMember {
     const(char)[] name; /// The name of the member.
-    UiReal low = 0;     /// Used by sliders.
-    UiReal high = 100;  /// Used by sliders.
-    UiReal step = 1;    /// Used by sliders.
+    UiReal low;         /// Used by sliders.
+    UiReal high;        /// Used by sliders.
+    UiReal step;        /// Used by sliders.
 
     @safe nothrow @nogc pure:
 
-    this(UiReal low, UiReal high, UiReal step = 1) {
+    this(UiReal low, UiReal high, UiReal step = UiReal.nan) {
         this.low = low;
         this.high = high;
         this.step = step;
     }
 
-    this(const(char)[] name, UiReal low, UiReal high, UiReal step = 1) {
+    this(const(char)[] name, UiReal low, UiReal high, UiReal step = UiReal.nan) {
         this(low, high, step);
         this.name = name;
     }
@@ -469,18 +469,13 @@ UiResFlags header(const(char)[] label) {
 }
 
 void members(T)(ref T data, int labelWidth) {
-    static assert(is(typeof(data) == struct), "Data must be a struct.");
-
     row(0, labelWidth, -1);
     static foreach (member; data.tupleof) {
         static if (is(__traits(getAttributes, member)[0] == UiMember)) {
             static if (is(typeof(member) == bool)) {
                 label(member.stringof);
                 checkbox(mixin("data.", member.stringof));
-            } else static if (is(typeof(member) == mu_Real)) {
-                label(member.stringof);
-                number(mixin("data.", member.stringof));
-            } else static if (is(typeof(member) == int)) {
+            } else static if (is(typeof(member) == UiReal) || is(typeof(member) == int)) {
                 label(member.stringof);
                 number(mixin("data.", member.stringof));
             }
@@ -488,13 +483,16 @@ void members(T)(ref T data, int labelWidth) {
             static if (is(typeof(member) == bool)) {
                 label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
                 checkbox(mixin("data.", member.stringof));
-            } else static if (is(typeof(member) == mu_Real)) {
+            } else static if ((is(typeof(member) == UiReal) || is(typeof(member) == int)) && !(__traits(getAttributes, member)[0].low == __traits(getAttributes, member)[0].low)) {
+                label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
+                number(mixin("data.", member.stringof));
+            } else static if (is(typeof(member) == UiReal)) {
                 label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
                 slider(
                     mixin("data.", member.stringof),
                     __traits(getAttributes, member)[0].low,
                     __traits(getAttributes, member)[0].high,
-                    __traits(getAttributes, member)[0].step,
+                    !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 0.01f : __traits(getAttributes, member)[0].step,
                     MU_SLIDER_FMT,
                     MU_OPT_ALIGNCENTER,
                 );
@@ -504,7 +502,7 @@ void members(T)(ref T data, int labelWidth) {
                     mixin("data.", member.stringof),
                     cast(int) __traits(getAttributes, member)[0].low,
                     cast(int) __traits(getAttributes, member)[0].high,
-                    cast(int) __traits(getAttributes, member)[0].step,
+                    !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 1.00f : __traits(getAttributes, member)[0].step,
                     MU_SLIDER_INT_FMT,
                     MU_OPT_ALIGNCENTER,
                 );
@@ -512,6 +510,13 @@ void members(T)(ref T data, int labelWidth) {
         }
     }
     row(0, 0);
+}
+
+UiResFlags headerAndMembers(T)(ref T data, int labelWidth, const(char)[] label = "") {
+    auto result = header(label.length ? label : typeof(data).stringof);
+    if (result) members(data, labelWidth);
+    row(0, 0);
+    return result;
 }
 
 UiResFlags beginTreeNode(const(char)[] label, UiOptFlags opt) {
