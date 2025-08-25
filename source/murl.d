@@ -111,9 +111,11 @@ void readyUi(UiFont font = null, int fontScale = 1) {
     if (data) {
         auto baseSize = data.baseSize * uiStyle.fontScale;
         uiStyle.size = UiVec(baseSize * 6, baseSize);
-        uiStyle.titleHeight = cast(int) (baseSize * 1.4f);
+        uiStyle.titleHeight = cast(int) (baseSize * 1.5f);
+
+        // No idea, just looks good sometimes.
         if (baseSize <= 16) {
-        } else if (baseSize <= 64) {
+        } else if (baseSize <= 38) {
             uiStyle.border = 2;
             uiStyle.spacing += 4;
             uiStyle.padding += 4;
@@ -144,11 +146,11 @@ nothrow @nogc
 void handleUiInput() {
     auto scroll = 0.0f;
     version (WebAssembly) {
-        scroll = -GetMouseWheelMove();
-    } version (OSX) {
-        scroll = -GetMouseWheelMove();
-    } else {
         scroll = GetMouseWheelMove();
+    } version (OSX) {
+        scroll = GetMouseWheelMove();
+    } else {
+        scroll = -GetMouseWheelMove();
     }
     with (UiMouseFlag) {
         uiInputScroll(cast(int) scroll, cast(int) scroll);

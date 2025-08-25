@@ -1041,8 +1041,8 @@ nothrow @nogc {
     }
 
     void mu_input_scroll(mu_Context* ctx, int x, int y) {
-        ctx.scrollDelta.x += x * -ctx.style.scrollbarSpeed;
-        ctx.scrollDelta.y += y * -ctx.style.scrollbarSpeed;
+        ctx.scrollDelta.x += x * ctx.style.scrollbarSpeed;
+        ctx.scrollDelta.y += y * ctx.style.scrollbarSpeed;
     }
 
     void mu_input_keydown(mu_Context* ctx, mu_KeyFlags key) {
