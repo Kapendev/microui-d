@@ -157,6 +157,31 @@ enum UiKeyFlag : mu_KeyFlags {
     f4        = MU_KEY_F4,        /// F4 key down.
 }
 
+/// Used by the `members` function.
+struct UiMember {
+    const(char)[] name; /// The name of the member.
+    UiReal low = 0;     /// Used by sliders.
+    UiReal high = 100;  /// Used by sliders.
+    UiReal step = 1;    /// Used by sliders.
+
+    @safe nothrow @nogc pure:
+
+    this(UiReal low, UiReal high, UiReal step = 1) {
+        this.low = low;
+        this.high = high;
+        this.step = step;
+    }
+
+    this(const(char)[] name, UiReal low, UiReal high, UiReal step = 1) {
+        this(low, high, step);
+        this.name = name;
+    }
+
+    this(const(char)[] name) {
+        this.name = name;
+    }
+}
+
 @trusted:
 
 nothrow @nogc
@@ -320,45 +345,40 @@ void drawUiIcon(UiIconEnum id, UiRect rect, UiColor color) {
 ** layout
 **============================================================================*/
 
-void beginUiColumn() {
+deprecated("Use `beginColumn` instead.") alias beginUiColumn = beginColumn;
+void beginColumn() {
     mu_layout_begin_column(&uiContext);
 }
 
-void endUiColumn() {
+deprecated("Use `endColumn` instead.") alias endUiColumn = endColumn;
+void endColumn() {
     mu_layout_end_column(&uiContext);
 }
 
-void uiRow(int height, const(int)[] widths...) {
+deprecated("Use `row` instead.") alias uiRow = row;
+void row(int height, const(int)[] widths...) {
     mu_layout_row(&uiContext, height, widths);
 }
 
-void setUiLayoutWidth(int width) {
+deprecated("Use `setLayoutWidth` instead.") alias setUiLayoutWidth = setLayoutWidth;
+void setLayoutWidth(int width) {
     mu_layout_width(&uiContext, width);
 }
 
-deprecated("Use `setUiLayoutWidth` instead.")
-alias setLayoutWidth = setUiLayoutWidth;
-
-void setUiLayoutHeight(int height) {
+deprecated("Use `setLayoutHeight` instead.") alias setUiLayoutHeight = setLayoutHeight;
+void setLayoutHeight(int height) {
     mu_layout_height(&uiContext, height);
 }
 
-deprecated("Use `setUiLayoutHeight` instead.")
-alias setLayoutHeight = setUiLayoutHeight;
-
-void setNextUiLayout(UiRect rect, bool relative) {
+deprecated("Use `setNextLayout` instead.") alias setNextUiLayout = setNextLayout;
+void setNextLayout(UiRect rect, bool relative) {
     mu_layout_set_next(&uiContext, rect, relative);
 }
 
-deprecated("Use `setNextUiLayout` instead.")
-alias setNextLayout = setNextUiLayout;
-
-UiRect nextUiLayout() {
+deprecated("Use `nextLayout` instead.") alias nextUiLayout = nextLayout;
+UiRect nextLayout() {
     return mu_layout_next(&uiContext);
 }
-
-deprecated("Use `nextUiLayout` instead.")
-alias nextLayout = nextUiLayout;
 
 /*============================================================================
 ** controls
@@ -396,7 +416,7 @@ UiResFlags button(const(char)[] label) {
     return mu_button(&uiContext, label);
 }
 
-UiResFlags checkbox(const(char)[] label, ref bool state) {
+UiResFlags checkbox(ref bool state, const(char)[] label = "") {
     return mu_checkbox(&uiContext, label, &state);
 }
 
@@ -412,16 +432,32 @@ UiResFlags slider(ref UiReal value, UiReal low, UiReal high, UiReal step, const(
     return mu_slider_ex(&uiContext, &value, low, high, step, fmt, opt);
 }
 
+UiResFlags slider(ref int value, int low, int high, int step, const(char)[] fmt, UiOptFlags opt) {
+    return mu_slider_ex_int(&uiContext, &value, low, high, step, fmt, opt);
+}
+
 UiResFlags slider(ref UiReal value, UiReal low, UiReal high) {
     return mu_slider(&uiContext, &value, low, high);
+}
+
+UiResFlags slider(ref int value, int low, int high) {
+    return mu_slider_int(&uiContext, &value, low, high);
 }
 
 UiResFlags number(ref UiReal value, UiReal step, const(char)[] fmt, UiOptFlags opt) {
     return mu_number_ex(&uiContext, &value, step, fmt, opt);
 }
 
-UiResFlags number(ref UiReal value, UiReal step) {
+UiResFlags number(ref int value, int step, const(char)[] fmt, UiOptFlags opt) {
+    return mu_number_ex_int(&uiContext, &value, step, fmt, opt);
+}
+
+UiResFlags number(ref UiReal value, UiReal step = 0.01f) {
     return mu_number(&uiContext, &value, step);
+}
+
+UiResFlags number(ref int value, int step = 1) {
+    return mu_number_int(&uiContext, &value, step);
 }
 
 UiResFlags header(const(char)[] label, UiOptFlags opt) {
@@ -430,6 +466,52 @@ UiResFlags header(const(char)[] label, UiOptFlags opt) {
 
 UiResFlags header(const(char)[] label) {
     return mu_header(&uiContext, label);
+}
+
+void members(T)(ref T data, int labelWidth) {
+    static assert(is(typeof(data) == struct), "Data must be a struct.");
+
+    row(0, labelWidth, -1);
+    static foreach (member; data.tupleof) {
+        static if (is(__traits(getAttributes, member)[0] == UiMember)) {
+            static if (is(typeof(member) == bool)) {
+                label(member.stringof);
+                checkbox(mixin("data.", member.stringof));
+            } else static if (is(typeof(member) == mu_Real)) {
+                label(member.stringof);
+                number(mixin("data.", member.stringof));
+            } else static if (is(typeof(member) == int)) {
+                label(member.stringof);
+                number(mixin("data.", member.stringof));
+            }
+        } else static if (is(typeof(__traits(getAttributes, member)[0]) == UiMember)) {
+            static if (is(typeof(member) == bool)) {
+                label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
+                checkbox(mixin("data.", member.stringof));
+            } else static if (is(typeof(member) == mu_Real)) {
+                label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
+                slider(
+                    mixin("data.", member.stringof),
+                    __traits(getAttributes, member)[0].low,
+                    __traits(getAttributes, member)[0].high,
+                    __traits(getAttributes, member)[0].step,
+                    MU_SLIDER_FMT,
+                    MU_OPT_ALIGNCENTER,
+                );
+            } else static if (is(typeof(member) == int)) {
+                label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
+                slider(
+                    mixin("data.", member.stringof),
+                    cast(int) __traits(getAttributes, member)[0].low,
+                    cast(int) __traits(getAttributes, member)[0].high,
+                    cast(int) __traits(getAttributes, member)[0].step,
+                    MU_SLIDER_INT_FMT,
+                    MU_OPT_ALIGNCENTER,
+                );
+            }
+        }
+    }
+    row(0, 0);
 }
 
 UiResFlags beginTreeNode(const(char)[] label, UiOptFlags opt) {

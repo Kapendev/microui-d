@@ -87,6 +87,7 @@ enum MU_INPUTTEXT_SIZE      = 1024;                  /// Maximum length of input
 enum MU_MAX_WIDTHS          = 16;                    /// Maximum number of columns per layout row.
 enum MU_REAL_FMT            = "%.3g";                /// Format string used for real numbers.
 enum MU_SLIDER_FMT          = "%.2f";                /// Format string used for slider labels.
+enum MU_SLIDER_INT_FMT      = "%.0f";                /// Format string used for slider labels.
 enum MU_MAX_FMT             = 127;                   /// Max length of any formatted string.
 enum MU_COMMON_COLOR_SHIFT  = -12;                   /// The common shift value used for the base color of a control.
 
@@ -1548,8 +1549,21 @@ mu_ResFlags mu_slider_ex(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real h
     return res;
 }
 
+mu_ResFlags mu_slider_ex_int(mu_Context* ctx, int* value, int low, int high, int step, const(char)[] fmt, mu_OptFlags opt) {
+    mu_push_id(ctx, &value, value.sizeof);
+    mu_Real temp = *value;
+    mu_ResFlags res = mu_slider_ex(ctx, &temp, low, high, step, fmt, opt);
+    *value = cast(int) temp;
+    mu_pop_id(ctx);
+    return res;
+}
+
 mu_ResFlags mu_slider(mu_Context* ctx, mu_Real* value, mu_Real low, mu_Real high) {
     return mu_slider_ex(ctx, value, low, high, 0.01f, MU_SLIDER_FMT, MU_OPT_ALIGNCENTER);
+}
+
+mu_ResFlags mu_slider_int(mu_Context* ctx, int* value, int low, int high) {
+    return mu_slider_ex_int(ctx, value, low, high, 1, MU_SLIDER_INT_FMT, MU_OPT_ALIGNCENTER);
 }
 
 mu_ResFlags mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(char)[] fmt, mu_OptFlags opt) {
@@ -1584,8 +1598,21 @@ mu_ResFlags mu_number_ex(mu_Context* ctx, mu_Real* value, mu_Real step, const(ch
     return res;
 }
 
+mu_ResFlags mu_number_ex_int(mu_Context* ctx, int* value, int step, const(char)[] fmt, mu_OptFlags opt) {
+    mu_push_id(ctx, &value, value.sizeof);
+    mu_Real temp = *value;
+    mu_ResFlags res = mu_number_ex(ctx, &temp, step, fmt, opt);
+    *value = cast(int) temp;
+    mu_pop_id(ctx);
+    return res;
+}
+
 mu_ResFlags mu_number(mu_Context* ctx, mu_Real* value, mu_Real step) {
     return mu_number_ex(ctx, value, step, MU_SLIDER_FMT, MU_OPT_ALIGNCENTER);
+}
+
+mu_ResFlags mu_number_int(mu_Context* ctx, int* value, int step) {
+    return mu_number_ex_int(ctx, value, step, MU_SLIDER_INT_FMT, MU_OPT_ALIGNCENTER);
 }
 
 mu_ResFlags mu_header_ex(mu_Context* ctx, const(char)[] label, mu_OptFlags opt) {
