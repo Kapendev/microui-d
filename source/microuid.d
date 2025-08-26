@@ -478,7 +478,7 @@ UiResFlags header(const(char)[] label) {
     return mu_header(&uiContext, label);
 }
 
-void members(T)(ref T data, int labelWidth) {
+void members(T)(ref T data, int labelWidth, bool canShowPrivateMembers = false) {
     auto window = getCurrentUiContainer();
     row(0, labelWidth, -1);
     static foreach (member; data.tupleof) {
@@ -571,61 +571,63 @@ void members(T)(ref T data, int labelWidth) {
                 }
             }
         // Without data.
-        } else static if (!is(__traits(getAttributes, member)[0] == UiPrivate) && !is(typeof(__traits(getAttributes, member)[0]) == UiPrivate)) {
-            static if (__traits(hasMember, typeof(member), "x") && __traits(hasMember, typeof(member), "y") && __traits(hasMember, typeof(member), "z") && __traits(hasMember, typeof(member), "w")) {
-                static if (is(typeof(mixin("data.", member.stringof, ".x")) == UiReal) || is(typeof(mixin("data.", member.stringof, ".x")) == int)) {
-                    row(0, labelWidth,
-                        (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 4 - uiStyle.spacing - uiStyle.border,
-                        (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 4 - uiStyle.spacing - uiStyle.border,
-                        (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 4 - uiStyle.spacing - uiStyle.border,
-                        -1,
-                    );
+        } else {
+            if (canShowPrivateMembers || (!is(__traits(getAttributes, member)[0] == UiPrivate) && !is(typeof(__traits(getAttributes, member)[0]) == UiPrivate))) {
+                static if (__traits(hasMember, typeof(member), "x") && __traits(hasMember, typeof(member), "y") && __traits(hasMember, typeof(member), "z") && __traits(hasMember, typeof(member), "w")) {
+                    static if (is(typeof(mixin("data.", member.stringof, ".x")) == UiReal) || is(typeof(mixin("data.", member.stringof, ".x")) == int)) {
+                        row(0, labelWidth,
+                            (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 4 - uiStyle.spacing - uiStyle.border,
+                            (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 4 - uiStyle.spacing - uiStyle.border,
+                            (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 4 - uiStyle.spacing - uiStyle.border,
+                            -1,
+                        );
+                        label(member.stringof);
+                        number(mixin("data.", member.stringof, ".x"));
+                        number(mixin("data.", member.stringof, ".y"));
+                        number(mixin("data.", member.stringof, ".z"));
+                        number(mixin("data.", member.stringof, ".w"));
+                        row(0, labelWidth, -1);
+                    }
+                } else static if (__traits(hasMember, typeof(member), "x") && __traits(hasMember, typeof(member), "y") && __traits(hasMember, typeof(member), "z")) {
+                    static if (is(typeof(mixin("data.", member.stringof, ".x")) == UiReal) || is(typeof(mixin("data.", member.stringof, ".x")) == int)) {
+                        row(0, labelWidth,
+                            (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 3 - uiStyle.spacing - uiStyle.border,
+                            (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 3 - uiStyle.spacing - uiStyle.border,
+                            -1,
+                        );
+                        label(member.stringof);
+                        number(mixin("data.", member.stringof, ".x"));
+                        number(mixin("data.", member.stringof, ".y"));
+                        number(mixin("data.", member.stringof, ".z"));
+                        row(0, labelWidth, -1);
+                    }
+                } else static if (__traits(hasMember, typeof(member), "x") && __traits(hasMember, typeof(member), "y")) {
+                    static if (is(typeof(mixin("data.", member.stringof, ".x")) == UiReal) || is(typeof(mixin("data.", member.stringof, ".x")) == int)) {
+                        row(0, labelWidth,
+                            (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 2 - uiStyle.spacing - uiStyle.border,
+                            -1,
+                        );
+                        label(member.stringof);
+                        number(mixin("data.", member.stringof, ".x"));
+                        number(mixin("data.", member.stringof, ".y"));
+                        row(0, labelWidth, -1);
+                    }
+                } else static if (is(typeof(member) == bool)) {
                     label(member.stringof);
-                    number(mixin("data.", member.stringof, ".x"));
-                    number(mixin("data.", member.stringof, ".y"));
-                    number(mixin("data.", member.stringof, ".z"));
-                    number(mixin("data.", member.stringof, ".w"));
-                    row(0, labelWidth, -1);
-                }
-            } else static if (__traits(hasMember, typeof(member), "x") && __traits(hasMember, typeof(member), "y") && __traits(hasMember, typeof(member), "z")) {
-                static if (is(typeof(mixin("data.", member.stringof, ".x")) == UiReal) || is(typeof(mixin("data.", member.stringof, ".x")) == int)) {
-                    row(0, labelWidth,
-                        (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 3 - uiStyle.spacing - uiStyle.border,
-                        (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 3 - uiStyle.spacing - uiStyle.border,
-                        -1,
-                    );
+                    checkbox(mixin("data.", member.stringof));
+                } else static if (is(typeof(member) == UiReal) || is(typeof(member) == int)) {
                     label(member.stringof);
-                    number(mixin("data.", member.stringof, ".x"));
-                    number(mixin("data.", member.stringof, ".y"));
-                    number(mixin("data.", member.stringof, ".z"));
-                    row(0, labelWidth, -1);
+                    number(mixin("data.", member.stringof));
                 }
-            } else static if (__traits(hasMember, typeof(member), "x") && __traits(hasMember, typeof(member), "y")) {
-                static if (is(typeof(mixin("data.", member.stringof, ".x")) == UiReal) || is(typeof(mixin("data.", member.stringof, ".x")) == int)) {
-                    row(0, labelWidth,
-                        (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 2 - uiStyle.spacing - uiStyle.border,
-                        -1,
-                    );
-                    label(member.stringof);
-                    number(mixin("data.", member.stringof, ".x"));
-                    number(mixin("data.", member.stringof, ".y"));
-                    row(0, labelWidth, -1);
-                }
-            } else static if (is(typeof(member) == bool)) {
-                label(member.stringof);
-                checkbox(mixin("data.", member.stringof));
-            } else static if (is(typeof(member) == UiReal) || is(typeof(member) == int)) {
-                label(member.stringof);
-                number(mixin("data.", member.stringof));
             }
         }
     }
     row(0, 0);
 }
 
-UiResFlags headerAndMembers(T)(ref T data, int labelWidth, const(char)[] label = "") {
+UiResFlags headerAndMembers(T)(ref T data, int labelWidth, const(char)[] label = "", bool canShowPrivateMembers = false) {
     auto result = header(label.length ? label : typeof(data).stringof);
-    if (result) members(data, labelWidth);
+    if (result) members(data, labelWidth, canShowPrivateMembers);
     row(0, 0);
     return result;
 }
