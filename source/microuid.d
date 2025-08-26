@@ -172,13 +172,20 @@ struct UiMember {
         this.step = step;
     }
 
-    this(const(char)[] name, UiReal low, UiReal high, UiReal step = UiReal.nan) {
-        this(low, high, step);
-        this.name = name;
+    this(UiReal step) {
+        this.step = step;
     }
 
-    this(const(char)[] name) {
+    this(const(char)[] name, UiReal low, UiReal high, UiReal step = UiReal.nan) {
         this.name = name;
+        this.low = low;
+        this.high = high;
+        this.step = step;
+    }
+
+    this(const(char)[] name, UiReal step = UiReal.nan) {
+        this.name = name;
+        this.step = step;
     }
 }
 
@@ -469,25 +476,118 @@ UiResFlags header(const(char)[] label) {
 }
 
 void members(T)(ref T data, int labelWidth) {
+    auto window = getCurrentUiContainer();
     row(0, labelWidth, -1);
-    static foreach (member; data.tupleof) {
-        static if (is(__traits(getAttributes, member)[0] == UiMember)) {
-            static if (is(typeof(member) == bool)) {
+    static foreach (member; data.tupleof) { static if (is(__traits(getAttributes, member)[0] == UiMember)) {
+        static if (__traits(hasMember, typeof(member), "x") && __traits(hasMember, typeof(member), "y") && __traits(hasMember, typeof(member), "z") && __traits(hasMember, typeof(member), "w")) {
+            static if (is(typeof(mixin("data.", member.stringof, ".x")) == UiReal) || is(typeof(mixin("data.", member.stringof, ".x")) == int)) {
+                row(0, labelWidth,
+                    (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 4 - uiStyle.spacing - uiStyle.border,
+                    (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 4 - uiStyle.spacing - uiStyle.border,
+                    (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 4 - uiStyle.spacing - uiStyle.border,
+                    -1,
+                );
                 label(member.stringof);
-                checkbox(mixin("data.", member.stringof));
-            } else static if (is(typeof(member) == UiReal) || is(typeof(member) == int)) {
-                label(member.stringof);
-                number(mixin("data.", member.stringof));
+                number(mixin("data.", member.stringof, ".x"));
+                number(mixin("data.", member.stringof, ".y"));
+                number(mixin("data.", member.stringof, ".z"));
+                number(mixin("data.", member.stringof, ".w"));
+                row(0, labelWidth, -1);
             }
-        } else static if (is(typeof(__traits(getAttributes, member)[0]) == UiMember)) {
-            static if (is(typeof(member) == bool)) {
+        } else static if (__traits(hasMember, typeof(member), "x") && __traits(hasMember, typeof(member), "y") && __traits(hasMember, typeof(member), "z")) {
+            static if (is(typeof(mixin("data.", member.stringof, ".x")) == UiReal) || is(typeof(mixin("data.", member.stringof, ".x")) == int)) {
+                row(0, labelWidth,
+                    (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 3 - uiStyle.spacing - uiStyle.border,
+                    (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 3 - uiStyle.spacing - uiStyle.border,
+                    -1,
+                );
+                label(member.stringof);
+                number(mixin("data.", member.stringof, ".x"));
+                number(mixin("data.", member.stringof, ".y"));
+                number(mixin("data.", member.stringof, ".z"));
+                row(0, labelWidth, -1);
+            }
+        } else static if (__traits(hasMember, typeof(member), "x") && __traits(hasMember, typeof(member), "y")) {
+            static if (is(typeof(mixin("data.", member.stringof, ".x")) == UiReal) || is(typeof(mixin("data.", member.stringof, ".x")) == int)) {
+                row(0, labelWidth,
+                    (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 2 - uiStyle.spacing - uiStyle.border,
+                    -1,
+                );
+                label(member.stringof);
+                number(mixin("data.", member.stringof, ".x"));
+                number(mixin("data.", member.stringof, ".y"));
+                row(0, labelWidth, -1);
+            }
+        } else static if (is(typeof(member) == bool)) {
+            label(member.stringof);
+            checkbox(mixin("data.", member.stringof));
+        } else static if (is(typeof(member) == UiReal) || is(typeof(member) == int)) {
+            label(member.stringof);
+            number(mixin("data.", member.stringof));
+        }
+    } else static if (is(typeof(__traits(getAttributes, member)[0]) == UiMember)) {
+        static if (__traits(hasMember, typeof(member), "x") && __traits(hasMember, typeof(member), "y") && __traits(hasMember, typeof(member), "z") && __traits(hasMember, typeof(member), "w")) {
+            row(0, labelWidth,
+                (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 4 - uiStyle.spacing - uiStyle.border,
+                (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 4 - uiStyle.spacing - uiStyle.border,
+                (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 4 - uiStyle.spacing - uiStyle.border,
+                -1,
+            );
+            static if (is(typeof(mixin("data.", member.stringof, ".x")) == UiReal)) {
                 label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
-                checkbox(mixin("data.", member.stringof));
-            } else static if ((is(typeof(member) == UiReal) || is(typeof(member) == int)) && !(__traits(getAttributes, member)[0].low == __traits(getAttributes, member)[0].low)) {
+                number(mixin("data.", member.stringof, ".x"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 0.01f : __traits(getAttributes, member)[0].step);
+                number(mixin("data.", member.stringof, ".y"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 0.01f : __traits(getAttributes, member)[0].step);
+                number(mixin("data.", member.stringof, ".z"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 0.01f : __traits(getAttributes, member)[0].step);
+                number(mixin("data.", member.stringof, ".w"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 0.01f : __traits(getAttributes, member)[0].step);
+            } else static if (is(typeof(mixin("data.", member.stringof, ".x")) == int)) {
                 label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
-                number(mixin("data.", member.stringof));
-            } else static if (is(typeof(member) == UiReal)) {
+                number(mixin("data.", member.stringof, ".x"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 1 : cast(int) __traits(getAttributes, member)[0].step);
+                number(mixin("data.", member.stringof, ".y"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 1 : cast(int) __traits(getAttributes, member)[0].step);
+                number(mixin("data.", member.stringof, ".z"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 1 : cast(int) __traits(getAttributes, member)[0].step);
+                number(mixin("data.", member.stringof, ".w"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 1 : cast(int) __traits(getAttributes, member)[0].step);
+            }
+            row(0, labelWidth, -1);
+        } else static if (__traits(hasMember, typeof(member), "x") && __traits(hasMember, typeof(member), "y") && __traits(hasMember, typeof(member), "z")) {
+            row(0, labelWidth,
+                (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 3 - uiStyle.spacing - uiStyle.border,
+                (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 3 - uiStyle.spacing - uiStyle.border,
+                -1,
+            );
+            static if (is(typeof(mixin("data.", member.stringof, ".x")) == UiReal)) {
                 label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
+                number(mixin("data.", member.stringof, ".x"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 0.01f : __traits(getAttributes, member)[0].step);
+                number(mixin("data.", member.stringof, ".y"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 0.01f : __traits(getAttributes, member)[0].step);
+                number(mixin("data.", member.stringof, ".z"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 0.01f : __traits(getAttributes, member)[0].step);
+            } else static if (is(typeof(mixin("data.", member.stringof, ".x")) == int)) {
+                label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
+                number(mixin("data.", member.stringof, ".x"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 1 : cast(int) __traits(getAttributes, member)[0].step);
+                number(mixin("data.", member.stringof, ".y"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 1 : cast(int) __traits(getAttributes, member)[0].step);
+                number(mixin("data.", member.stringof, ".z"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 1 : cast(int) __traits(getAttributes, member)[0].step);
+            }
+            row(0, labelWidth, -1);
+        } else static if (__traits(hasMember, typeof(member), "x") && __traits(hasMember, typeof(member), "y")) {
+            row(0, labelWidth,
+                (window.rect.w - labelWidth - uiStyle.spacing - uiStyle.border) / 2 - uiStyle.spacing - uiStyle.border,
+                -1,
+            );
+            static if (is(typeof(mixin("data.", member.stringof, ".x")) == UiReal)) {
+                label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
+                number(mixin("data.", member.stringof, ".x"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 0.01f : __traits(getAttributes, member)[0].step);
+                number(mixin("data.", member.stringof, ".y"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 0.01f : __traits(getAttributes, member)[0].step);
+            } else static if (is(typeof(mixin("data.", member.stringof, ".x")) == int)) {
+                label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
+                number(mixin("data.", member.stringof, ".x"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 1 : cast(int) __traits(getAttributes, member)[0].step);
+                number(mixin("data.", member.stringof, ".y"), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 1 : cast(int) __traits(getAttributes, member)[0].step);
+            }
+            row(0, labelWidth, -1);
+        } else static if (is(typeof(member) == bool)) {
+            label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
+            checkbox(mixin("data.", member.stringof));
+        } else static if (is(typeof(member) == UiReal)) {
+            label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
+            static if (!(__traits(getAttributes, member)[0].low == __traits(getAttributes, member)[0].low)) {
+                number(mixin("data.", member.stringof), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 0.01f : __traits(getAttributes, member)[0].step);
+            } else {
                 slider(
                     mixin("data.", member.stringof),
                     __traits(getAttributes, member)[0].low,
@@ -496,19 +596,23 @@ void members(T)(ref T data, int labelWidth) {
                     MU_SLIDER_FMT,
                     MU_OPT_ALIGNCENTER,
                 );
-            } else static if (is(typeof(member) == int)) {
-                label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
+            }
+        } else static if (is(typeof(member) == int)) {
+            label(__traits(getAttributes, member)[0].name.length ? __traits(getAttributes, member)[0].name : member.stringof);
+            static if (!(__traits(getAttributes, member)[0].low == __traits(getAttributes, member)[0].low)) {
+                number(mixin("data.", member.stringof), !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 1 : cast(int) __traits(getAttributes, member)[0].step);
+            } else {
                 slider(
                     mixin("data.", member.stringof),
                     cast(int) __traits(getAttributes, member)[0].low,
                     cast(int) __traits(getAttributes, member)[0].high,
-                    !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 1.00f : __traits(getAttributes, member)[0].step,
+                    !(__traits(getAttributes, member)[0].step == __traits(getAttributes, member)[0].step) ? 1 : cast(int) __traits(getAttributes, member)[0].step,
                     MU_SLIDER_INT_FMT,
                     MU_OPT_ALIGNCENTER,
                 );
             }
         }
-    }
+    }}
     row(0, 0);
 }
 
