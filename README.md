@@ -11,7 +11,7 @@ It's 90% the same library, but with bug fixes, texture support, and other D-spec
 * Simple layout system
 * Works within a fixed memory region
 * Works with any rendering system that can draw rectangles and text
-* Optional helper modules for other libraries ([raylib](https://github.com/raysan5/raylib), [Parin](https://github.com/Kapendev/parin))
+* Optional helper modules for libraries like [raylib](https://github.com/raysan5/raylib)
 * C interface for cross-language use
 * BetterC support
 
@@ -47,7 +47,6 @@ void main() {
 * `microui`: Immediate-mode UI library
 * `microuid`: Wrapper around `microui`
 * `murl`: Raylib helper utilities
-* `mupr`: Parin helper utilities
 
 ## Documentation
 

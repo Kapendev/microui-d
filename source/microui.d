@@ -298,7 +298,9 @@ struct mu_Color {
     @safe nothrow @nogc pure:
 
     pragma(inline, true)
-    mu_Color shift(int value) => mu_shift_color(this, value);
+    mu_Color shift(int value) {
+        return mu_shift_color(this, value);
+    }
 }
 
 /// A 2D rectangle using ints.
@@ -308,10 +310,21 @@ struct mu_Rect {
     @safe nothrow @nogc pure:
 
     pragma(inline, true):
-    mu_Rect expand(int n) => mu_expand_rect(this, n);
-    mu_Rect intersect(mu_Rect r2) => mu_intersect_rects(this, r2);
-    bool overlaps(mu_Vec2 p) => mu_rect_overlaps_vec2(this, p);
-    bool hasSize() => mu_rect_has_size(this);
+    mu_Rect expand(int n) {
+        return mu_expand_rect(this, n);
+    }
+
+    mu_Rect intersect(mu_Rect r2) {
+        return mu_intersect_rects(this, r2);
+    }
+
+    bool overlaps(mu_Vec2 p) {
+        return mu_rect_overlaps_vec2(this, p);
+    }
+
+    bool hasSize() {
+        return mu_rect_has_size(this);
+    }
 }
 
 /// A 2D vector using ints.
@@ -474,6 +487,7 @@ private @trusted {
         }
     }
 
+    extern(C) nothrow @nogc
     int compare_zindex(const(void)* a, const(void)* b) {
         return (*cast(mu_Container**) b).zIndex - (*cast(mu_Container**) a).zIndex;
     }
@@ -649,19 +663,35 @@ private @trusted {
 
     // The microui assert function.
     nothrow @nogc pure
-    void mu_expect(bool x, const(char)[] message = "Fatal microui error.") => assert(x, message);
+    void mu_expect(bool x, const(char)[] message = "Fatal microui error.") {
+        assert(x, message);
+    }
+
     // Temporary text measurement function for prototyping.
     nothrow @nogc pure
-    int mu_temp_text_width_func(mu_Font font, const(char)[] str) => 200;
+    int mu_temp_text_width_func(mu_Font font, const(char)[] str) {
+        return 200;
+    }
+
     // Temporary text measurement function for prototyping.
     nothrow @nogc pure
-    int mu_temp_text_height_func(mu_Font font) => 20;
+    int mu_temp_text_height_func(mu_Font font) {
+        return 20;
+    }
 }
 
 pragma(inline, true) @safe nothrow @nogc pure {
-    T mu_min(T)(T a, T b)        => ((a) < (b) ? (a) : (b));
-    T mu_max(T)(T a, T b)        => ((a) > (b) ? (a) : (b));
-    T mu_clamp(T)(T x, T a, T b) => mu_min(b, mu_max(a, x));
+    T mu_min(T)(T a, T b) {
+        return ((a) < (b) ? (a) : (b));
+    }
+
+    T mu_max(T)(T a, T b) {
+        return ((a) > (b) ? (a) : (b));
+    }
+
+    T mu_clamp(T)(T x, T a, T b) {
+        return mu_min(b, mu_max(a, x));
+    }
 
     /// Returns true if the character is a symbol (!, ", ...).
     bool mu_is_symbol_char(char c) {
@@ -904,7 +934,7 @@ void mu_end(mu_Context *ctx) {
 
     /* sort root containers by z index */
     int n = ctx.rootList.idx;
-    qsort(ctx.rootList.items.ptr, n, (mu_Container*).sizeof, cast(STDLIB_QSORT_FUNC) &compare_zindex);
+    qsort(ctx.rootList.items.ptr, n, (mu_Container*).sizeof, &compare_zindex);
 
     /* set root container jump commands */
     foreach (i; 0 .. n) {
