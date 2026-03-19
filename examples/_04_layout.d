@@ -1,3 +1,5 @@
+/// NOTE: ONLY HERE FOR EXAMPLE. The module `mupr.d` does not exist anymore.
+
 /// This example shows how to use the layout system.
 /// More info on: https://github.com/rxi/microui/blob/master/doc/usage.md#layout-system
 /// Parin: https://github.com/Kapendev/parin

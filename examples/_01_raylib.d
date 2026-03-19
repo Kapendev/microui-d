@@ -8,7 +8,7 @@ void main() {
     // Create the window and UI context.
     InitWindow(800, 600, "raylib + microui");
     auto font = GetFontDefault();
-    readyUi(&font);
+    readyUi(&font, 2);
 
     while (!WindowShouldClose) {
         BeginDrawing();

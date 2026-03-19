@@ -1,3 +1,5 @@
+/// NOTE: ONLY HERE FOR EXAMPLE. The module `mupr.d` does not exist anymore.
+
 /// This example shows how to use microui with Parin.
 /// Parin: https://github.com/Kapendev/parin
 
