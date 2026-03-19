@@ -15,17 +15,17 @@ It's 90% the same library, but with bug fixes, texture support, and other D-spec
 * C interface for cross-language use
 * BetterC support
 
-## Hello World Example
+## Example
 
 ```d
-import murl; // Equivalent to `import microuid`, with additional helper functions for raylib.
 import raylib;
+import murl; // Equivalent to `import microuid`, with additional helper functions for raylib.
 
 void main() {
     // Create the window and UI context.
     InitWindow(800, 600, "raylib + microui");
     auto font = GetFontDefault();
-    readyUi(&font);
+    readyUi(&font, 2);
 
     while (!WindowShouldClose) {
         BeginDrawing();
