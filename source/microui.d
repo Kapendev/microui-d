@@ -208,62 +208,25 @@ enum : mu_KeyFlags {
 // It exists mainly because of weird BetterC stuff.
 struct mu_Array(T, size_t N) {
     align(T.alignof) ubyte[T.sizeof * N] data;
-
-    enum length = N;
+    alias items this;
 
     @trusted nothrow @nogc:
 
     this(const(T)[] items...) {
         if (items.length > N) assert(0, "Too many items.");
-        auto datadata = this.items;
-        foreach (i; 0 .. N) datadata[i] = cast(T) items[i];
+        foreach (i; 0 .. N) (cast(T*) data.ptr)[i] = cast(T) items[i];
     }
 
-    pragma(inline, true)
-    T[] opSlice(size_t dim)(size_t i, size_t j) {
-        return items[i .. j];
-    }
+    /// The length of the array.
+    enum length = N;
 
-    pragma(inline, true)
-    T[] opIndex() {
-        return items[];
-    }
-
-    pragma(inline, true)
-    T[] opIndex(T[] slice) {
-        return slice;
-    }
-
-    pragma(inline, true)
-    ref T opIndex(size_t i) {
-        return items[i];
-    }
-
-    pragma(inline, true)
-    void opIndexAssign(const(T) rhs, size_t i) {
-        items[i] = cast(T) rhs;
-    }
-
-    pragma(inline, true)
-    void opIndexOpAssign(const(char)[] op)(const(T) rhs, size_t i) {
-        mixin("items[i]", op, "= cast(T) rhs;");
-    }
-
-    pragma(inline, true)
-    size_t opDollar(size_t dim)() {
-        return N;
-    }
+    /// The capacity of the array.
+    enum capacity = N;
 
     /// Returns the items of the array.
     pragma(inline, true)
-    T[] items() {
+    inout(T)[] items() inout {
         return (cast(T*) data.ptr)[0 .. N];
-    }
-
-    /// Returns the pointer of the array.
-    pragma(inline, true)
-    T* ptr() {
-        return cast(T*) data.ptr;
     }
 }
 

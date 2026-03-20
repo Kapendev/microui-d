@@ -1,4 +1,4 @@
-# 🔩 microui-d
+# microui-d
 
 A tiny and portable immediate-mode UI library written in D.
 Microui-d is a complete rewrite of [rxi's microui](https://github.com/rxi/microui).
